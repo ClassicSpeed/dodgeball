@@ -192,6 +192,9 @@ public OnPluginStart()
 	HookEvent("teamplay_round_win", OnRoundEnd);
 	HookEvent("teamplay_round_stalemate", OnRoundEnd);
 	
+	AddCommandListener(Command_Block,"kill");
+	AddCommandListener(Command_Block,"explode");
+	
 	AutoExecConfig(true, "plugin.dodgeball_redux");
 }
 
@@ -935,6 +938,17 @@ public Action:OnPlayerRunCmd(iClient, &iButtons, &iImpulse, Float:fVelocity[3], 
 {
 	if(!g_Enabled || !g_isDBmap) return Plugin_Continue;
 	iButtons &= ~IN_ATTACK;
+	return Plugin_Continue;
+}
+
+/* Command_Block()
+**
+** Blocks a command
+** -------------------------------------------------------------------------- */
+public Action:Command_Block(client, const String:command[], argc)
+{
+	if(g_isDBmap && g_Enabled)
+		return Plugin_Stop;
 	return Plugin_Continue;
 }
 
