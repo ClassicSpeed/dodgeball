@@ -104,11 +104,11 @@ new db_burstammo_def = 1;
 // ---- Plugin's Information ---------------------------------------------------
 public Plugin:myinfo =
 {
-	name	= "[TF2] Dodgeball Redux",
-	author	= "Classic",
-	description	= "Dodgeball plugin for TF2",
-	version	= DB_VERSION,
-	url	= "http://www.clangs.com.ar"
+	name = "[TF2] Dodgeball Redux",
+	author = "Classic",
+	description = "Dodgeball plugin for TF2",
+	version = DB_VERSION,
+	url = "http://www.clangs.com.ar"
 };
 
 /* OnPluginStart()
