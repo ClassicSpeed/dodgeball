@@ -119,16 +119,16 @@ public OnPluginStart()
 {
 	//Cvars
 	CreateConVar("sm_db_version", DB_VERSION, "Dogdeball Redux Version.", FCVAR_REPLICATED | FCVAR_PLUGIN | FCVAR_SPONLY | FCVAR_DONTRECORD | FCVAR_NOTIFY);
-	db_Enabled		= CreateConVar("sm_db_enabled", "1", "Enables / Disables the Dodgeball Redux plugin.", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	db_OnlyPyro	= CreateConVar("sm_db_onlypyro", "0", "Force players to pyro class.", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	db_SpawnTime	= CreateConVar("sm_db_rocket_spawntime", "2.0", "Time that takes to re-spawn a new rocket.", FCVAR_PLUGIN, true, 0.1);
-	db_BaseDamage	= CreateConVar("sm_db_rocket_basedamage", "200", "Base damage of the rocket. It will be bigger than this, because it will be crit. ", FCVAR_PLUGIN, true, 1.0);
-	db_SpeedMul	= CreateConVar("sm_db_rocket_speedmul","0.9", "Value that the base rocket speed (1100) is multiplied by for the initial speed.", FCVAR_PLUGIN, true, 0.0);
-	db_DeflectInc	= CreateConVar("sm_db_rocket_deflectinc", "0.05", "Increment of the speed on every reflect", FCVAR_PLUGIN, true, 0.0);
-	db_Turnrate	= CreateConVar("sm_db_rocket_turnrate", "0.05", "Turn rate per tick" , FCVAR_PLUGIN, true, 0.0);
-	db_TargetClosest	= CreateConVar("sm_db_target_closest", "1", "Select a the closest target on deflect. If it's 0 it will be random.", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	db_AllowAim	= CreateConVar("sm_db_target_allowaim", "1", "If the player is aiming to another player, the rocket will go to that player.", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	db_AimedSpeedMul	= CreateConVar("sm_db_aimedSpeedMul", "1.5", "Speed multiplier when a rocket is deflected aiming, this will revert after the next defelct.", FCVAR_PLUGIN, true, 0.0);
+	db_Enabled = CreateConVar("sm_db_enabled", "1", "Enables / Disables the Dodgeball Redux plugin.", FCVAR_PLUGIN, true, 0.0, true, 1.0);
+	db_OnlyPyro = CreateConVar("sm_db_onlypyro", "0", "Force players to pyro class.", FCVAR_PLUGIN, true, 0.0, true, 1.0);
+	db_SpawnTime = CreateConVar("sm_db_rocket_spawntime", "2.0", "Time that takes to re-spawn a new rocket.", FCVAR_PLUGIN, true, 0.1);
+	db_BaseDamage = CreateConVar("sm_db_rocket_basedamage", "200", "Base damage of the rocket. It will be bigger than this, because it will be crit. ", FCVAR_PLUGIN, true, 1.0);
+	db_SpeedMul = CreateConVar("sm_db_rocket_speedmul","0.9", "Value that the base rocket speed (1100) is multiplied by for the initial speed.", FCVAR_PLUGIN, true, 0.0);
+	db_DeflectInc = CreateConVar("sm_db_rocket_deflectinc", "0.05", "Increment of the speed on every reflect", FCVAR_PLUGIN, true, 0.0);
+	db_Turnrate = CreateConVar("sm_db_rocket_turnrate", "0.05", "Turn rate per tick" , FCVAR_PLUGIN, true, 0.0);
+	db_TargetClosest = CreateConVar("sm_db_target_closest", "1", "Select a the closest target on deflect. If it's 0 it will be random.", FCVAR_PLUGIN, true, 0.0, true, 1.0);
+	db_AllowAim = CreateConVar("sm_db_target_allowaim", "1", "If the player is aiming to another player, the rocket will go to that player.", FCVAR_PLUGIN, true, 0.0, true, 1.0);
+	db_AimedSpeedMul = CreateConVar("sm_db_aimedSpeedMul", "1.5", "Speed multiplier when a rocket is deflected aiming, this will revert after the next defelct.", FCVAR_PLUGIN, true, 0.0);
 	db_ShowInfo = CreateConVar("sm_db_showinfo", "1", "Shows Rocket's information on screen",FCVAR_PLUGIN, true, 0.0, true, 1.0);
 	db_InfoX = CreateConVar("sm_db_info_x", "0.03", "X position of the rocket's information.",FCVAR_PLUGIN, true, -1.0, true, 1.0);
 	db_InfoY = CreateConVar("sm_db_info_y", "0.21", "Y position of the rocket's information (first line).",FCVAR_PLUGIN, true, -1.0, true, 1.0);
