@@ -131,11 +131,12 @@ public OnPluginStart()
 	db_AimedSpeedMul	= CreateConVar("sm_db_aimedSpeedMul", "1.5", "Speed multiplier when a rocket is deflected aiming, this will revert after the next defelct.", FCVAR_PLUGIN, true, 0.0);
 	db_ShowInfo = CreateConVar("sm_db_showinfo", "1", "Shows Rocket's information on screen",FCVAR_PLUGIN, true, 0.0, true, 1.0);
 	db_InfoX = CreateConVar("sm_db_info_x", "0.03", "X position of the rocket's information.",FCVAR_PLUGIN, true, -1.0, true, 1.0);
-	db_InfoY = CreateConVar("sm_db_info_y", "0.41", "Y position of the rocket's information (first line).",FCVAR_PLUGIN, true, -1.0, true, 1.0);
+	db_InfoY = CreateConVar("sm_db_info_y", "0.21", "Y position of the rocket's information (first line).",FCVAR_PLUGIN, true, -1.0, true, 1.0);
 	db_MaxBounce = CreateConVar("sm_db_maxbounce", "10", "Max time that a rocket can bounce on walls.",FCVAR_PLUGIN, true, 0.0);
 	db_BlockFT = CreateConVar("sm_db_block_flamethrower", "1", "If true, the plugin would block the rainblower and the Degreaser",FCVAR_PLUGIN, true, 0.0, true, 1.0);
 	db_Delay = CreateConVar("sm_db_rocket_delay", "0.1", "Rocket delay after being reflected in seconds.",FCVAR_PLUGIN, true, 0.0);
 	
+	//Defaults variables values
 	g_Enabled = GetConVarBool(db_Enabled);
 	g_OnlyPyro = GetConVarBool(db_OnlyPyro);
 	g_SpawnTime = GetConVarFloat(db_SpawnTime);
@@ -152,7 +153,7 @@ public OnPluginStart()
 	g_MaxBounce = GetConVarInt(db_MaxBounce);
 	g_BlockFT = GetConVarBool(db_BlockFT);
 	g_Delay = GetConVarFloat(db_Delay);
-		
+	
 	//Cvars's hook
 	HookConVarChange(db_Enabled, OnCVarChange);
 	HookConVarChange(db_OnlyPyro, OnCVarChange);
@@ -191,9 +192,7 @@ public OnPluginStart()
 	HookEvent("teamplay_round_win", OnRoundEnd);
 	HookEvent("teamplay_round_stalemate", OnRoundEnd);
 	
-	
 	AutoExecConfig(true, "plugin.dodgeball_redux");
-	AddServerTag("dodgeball");
 }
 
 /* OnCVarChange()
@@ -235,7 +234,6 @@ public OnCVarChange(Handle:convar, const String:oldValue[], const String:newValu
 
 }
 
-
 /* OnMapStart()
 **
 ** Here we reset every global variable, and we check if the current map is a dodgeball map.
@@ -250,6 +248,7 @@ public OnMapStart()
 		LogMessage("[DB] Dodgeball map detected. Enabling Dodgeball Gamemode.");
 		g_isDBmap = true;
 		Steam_SetGameDescription("Dodgeball Redux");
+		AddServerTag("dodgeball");
 		// Precache sounds
 		PrecacheSound(SOUND_SPAWN, true);
 		PrecacheSound(SOUND_ALERT, true);
@@ -257,6 +256,7 @@ public OnMapStart()
  	else
 	{
 		LogMessage("[DB] Current map is not a Dodgeball map. Disabling Dodgeball Gamemode.");
+		RemoveServerTag("dodgeball");
 		g_isDBmap = false;
 		Steam_SetGameDescription("Team Fortress");	
 	}
@@ -270,8 +270,6 @@ public OnMapEnd()
 {
 	ResetCvars();
 }
-
-
 
 /* OnPrepartionStart()
 **
@@ -296,7 +294,7 @@ public Action:OnPrepartionStart(Handle:event, const String:name[], bool:dontBroa
 
 /* OnRoundStart()
 **
-** We unfreeze every player.
+** We unfreeze every player and we start the rocket timer
 ** -------------------------------------------------------------------------- */
 public Action:OnRoundStart(Handle:event, const String:name[], bool:dontBroadcast)
 {
@@ -346,8 +344,6 @@ public Action:OnPlayerInventory(Handle:event, const String:name[], bool:dontBroa
 		TF2_RemoveWeaponSlot(client, TFWeaponSlot_Grenade);
 		TF2_RemoveWeaponSlot(client, TFWeaponSlot_Building);
 		TF2_RemoveWeaponSlot(client, TFWeaponSlot_PDA);
-		//TF2_RemoveWeaponSlot(client, TFWeaponSlot_Item1);
-		//TF2_RemoveWeaponSlot(client, TFWeaponSlot_Item2);
 		
 		//We kill the demomen's shield on this preparation.
 		new ent = -1;
@@ -367,6 +363,7 @@ public Action:OnPlayerInventory(Handle:event, const String:name[], bool:dontBroa
 				{
 					if( (wep_index != 215 && wep_index != 741) || !g_BlockFT)
 					{
+						//This attribute disables the airblast effect on players
 						TF2Attrib_SetByDefIndex(wep_ent, 254, 4.0);
 						replace_primary = false; 
 					}
@@ -506,12 +503,12 @@ public SearchTarget()
 			{
 				g_RocketTarget= cAimed;
 				g_RocketAimed = true;
-				//PrintCenterText(rOwner,"Super shot to %N!!",cAimed);
 				return;
 			}
 		}
 	}
 	g_RocketAimed = false;
+	
 	//We make a list of possibles players
 	new possiblePlayers[MAXPLAYERS+1];
 	new possibleNumber = 0;
@@ -522,6 +519,7 @@ public SearchTarget()
 		possiblePlayers[possibleNumber] = i;
 		possibleNumber++;
 	}
+	
 	//If there weren't any player the could be targeted
 	if(possibleNumber == 0)
 	{
@@ -567,6 +565,7 @@ public SearchTarget()
 	
 
 }
+
 /* FireRocket()
 **
 ** Timer used to spawn a new rocket.
@@ -616,7 +615,8 @@ public Action:FireRocket(Handle:timer, any:rocketTeam)
 			EmitSoundToClient(g_RocketTarget, SOUND_ALERT, _, _, _, _, SOUND_ALERT_VOL);
 			
 		ShowHud(10.0,aux_mul,g_DeflectCount,0,g_RocketTarget);
-		//Observer
+		
+		//Observer point
 		if(IsValidEntity(g_observer))
 		{
 			TeleportEntity(g_observer, fPosition, fAngles, Float:{0.0, 0.0, 0.0});
@@ -631,7 +631,7 @@ public Action:OnStartTouch(entity, other)
 {
 	if (other > 0 && other <= MaxClients)
 		return Plugin_Continue;
-		
+	
 	// Only allow a rocket to bounce x times.
 	if (g_RocketBounces >= g_MaxBounce)
 		return Plugin_Continue;
@@ -796,6 +796,7 @@ public Action:EnableMov(Handle:timer, any:data)
 {
 	g_MovEnabled = true;
 }
+
 /* OnEntityDestroyed()
 **
 ** We check if the rocket got destroyed, and then fire a timer for a new rocket.
@@ -890,7 +891,6 @@ stock ShowHud( Float:h_duration=0.1, Float:h_speed=0.0, h_reflects=-1, h_owner=-
 			ShowSyncHudText(i, g_HudSyncs[hud_Target], "Target: -");
 	}
 }
-
 
 /* OnConfigsExecuted()
 **
