@@ -232,8 +232,10 @@ public OnCVarChange(Handle:convar, const String:oldValue[], const String:newValu
 		g_BlockFT = GetConVarBool(db_BlockFT);
 	else if(convar ==  db_InfoX)	
 		g_InfoX = GetConVarFloat(db_InfoX);
+	else if(convar ==  db_InfoY)	
+		g_InfoY = GetConVarFloat(db_InfoY);
 	else if(convar ==  db_Delay)	
-		g_InfoY = GetConVarFloat(db_Delay);
+		g_Delay = GetConVarFloat(db_Delay);
 
 }
 
