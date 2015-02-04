@@ -13,25 +13,37 @@
 // ---- Defines ----------------------------------------------------------------
 #define DB_VERSION "0.1.4"
 #define PLAYERCOND_SPYCLOAK (1<<4)
+
+#define MAXGENERIC 25
+#define MAXROCKETS 100
+#define MAXROCKETCLASS 25
+#define MAXMULTICOLORHUD 5
+
+#define TEAM_RED 2
+#define TEAM_BLUE 3
+
+/*
 #define PLAYER_SPEED 300.0
 #define BASE_SPEED 1100.0
 #define TRED 2
 #define TBLUE 3
 #define SOUND_SPAWN	"weapons/sentry_rocket.wav"
 #define SOUND_ALERT	"weapons/sentry_spot.wav"
+*/
 #define SOUND_ALERT_VOL	0.8
-#define NO_VELCHANGE_TIME 5
 #define HUD_LINE_SEPARATION 0.03
 
 //Colors
+/*
 #define DEF_R 63
 #define DEF_G 255
 #define DEF_B 127
 #define ALERT_R 255
 #define ALERT_G 0
 #define ALERT_B 0
+*/
 
-
+/*
 enum db_Hud
 {
     Handle:hud_Speed,
@@ -40,6 +52,16 @@ enum db_Hud
     Handle:hud_Target,
     Handle:hud_SuperShot
 }
+*/
+enum db_Hud
+{
+    Handle:hud_1,
+	Handle:hud_2,
+    Handle:hud_3,
+    Handle:hud_4,
+    Handle:hud_5,
+    Handle:hud_6
+}
 
 // ---- Variables --------------------------------------------------------------
 new bool:g_isDBmap = false;
@@ -47,6 +69,18 @@ new bool:g_onPreparation = false;
 new bool:g_roundActive = false;
 new g_BlueSpawn = -1;
 new g_RedSpawn = -1;
+new g_HudSyncs[db_Hud];
+
+new g_RocketEnt[MAXROCKETS] = {-1,...};
+new g_RocketBounces[MAXROCKETS] = {0,...};
+new g_RocketTarget[MAXROCKETS] = {-1,...};
+new bool:g_RocketAimed[MAXROCKETS] = {false,...};
+new Float:g_RocketDirection[MAXROCKETS][3] = {{ 0.0, 0.0, 0.0},...};
+new g_DeflectCount[MAXROCKETS] = {0,...};
+new g_observer[MAXROCKETS] = {-1,...};
+new bool:g_MovEnabled[MAXROCKETS] = {true,...};
+
+/*
 new g_RocketEnt = -1;
 new g_RocketBounces = 0;
 new g_RocketTarget= -1;
@@ -55,9 +89,89 @@ new Float:g_RocketDirection[3] = { 0.0, 0.0, 0.0};
 new g_DeflectCount = 0;
 new g_observer = -1;
 new bool:g_MovEnabled = true;
-new g_HudSyncs[db_Hud];
+*/
+
+// ---- Plugin's Configuration -------------------------------------------------
+new Float:g_player_speed;
+new bool:g_pyro_only;
+new bool:g_hud_show;
+new Float:g_hud_x;
+new Float:g_hud_y;
+new String:g_hud_color[32];
+new String:g_hud_aimed_text[PLATFORM_MAX_PATH];
+new String:g_hud_aimed_color[32];
+
+//Multi rocket color
+new bool:g_allow_multirocketcolor;
+new String:g_mrc_name[MAXMULTICOLORHUD][MAX_NAME_LENGTH];
+new String:g_mrc_color[MAXMULTICOLORHUD][32];
+new String:g_mrc_trail[MAXMULTICOLORHUD][PLATFORM_MAX_PATH];
+new bool:g_mrc_applycolor_model[MAXMULTICOLORHUD];
+new bool:g_mrc_applycolor_trail[MAXMULTICOLORHUD];
+
+//Command-config
+new Handle:g_CommandToBlock;
+new Handle:g_BlockOnlyOnPreparation;
+
+//Sound-config
+new Handle:g_SndRoundStart;
+new Handle:g_SndOnDeath;
+new Float: g_OnKillDelay;
+new Handle:g_SndOnKill;
+new Handle:g_SndLastAlive;
+
+//Flamethrower restriction
+new Handle:g_RestrictedWeps;
+
+//Rocket Classes//
+new String:g_class_section[MAXROCKETCLASS][MAX_NAME_LENGTH];
+new String:g_class_name[MAXROCKETCLASS][MAX_NAME_LENGTH];
+new String:g_class_trail[MAXROCKETCLASS][PLATFORM_MAX_PATH];
+new String:g_class_model[MAXROCKETCLASS][PLATFORM_MAX_PATH];
+new Float:g_class_size[MAXROCKETCLASS];
+new Float:g_class_size_inc[MAXROCKETCLASS];
+new Float:g_class_damage[MAXROCKETCLASS];
+new Float:g_class_damage_inc[MAXROCKETCLASS];
+new Float:g_class_speed[MAXROCKETCLASS];
+new Float:g_class_speed_inc[MAXROCKETCLASS];
+new Float:g_class_turnrate[MAXROCKETCLASS];
+new Float:g_class_turnrate_inc[MAXROCKETCLASS];
+new Float:g_class_deflect_delay[MAXROCKETCLASS];
+new bool:g_class_target_closest[MAXROCKETCLASS];
+new bool:g_class_aimed_allow[MAXROCKETCLASS];
+new Float:g_class_aimed_speed[MAXROCKETCLASS];
+new g_class_bounce_max[MAXROCKETCLASS];
+new Float:g_class_bounce_delay[MAXROCKETCLASS];
+//Rocket's sounds
+new bool:g_class_sound_spawn_play[MAXROCKETCLASS];
+new String:g_class_sound_spawn[MAXROCKETCLASS][PLATFORM_MAX_PATH];
+new bool:g_class_sound_alert_play[MAXROCKETCLASS];
+new String:g_class_sound_alert[MAXROCKETCLASS][PLATFORM_MAX_PATH];
+new bool:g_class_sound_deflect_play[MAXROCKETCLASS];
+new String:g_class_sound_deflect_red[MAXROCKETCLASS][PLATFORM_MAX_PATH];
+new String:g_class_sound_deflect_blue[MAXROCKETCLASS][PLATFORM_MAX_PATH];
+new bool:g_class_sound_beep_play[MAXROCKETCLASS];
+new String:g_class_sound_beep[MAXROCKETCLASS][PLATFORM_MAX_PATH];
+new Float:g_class_sound_beep_interval[MAXROCKETCLASS];
+new bool:g_class_sound_aimed_play[MAXROCKETCLASS];
+new String:g_class_sound_aimed[MAXROCKETCLASS][PLATFORM_MAX_PATH];
+//Explosion
+new bool:g_class_explosion_create[MAXROCKETCLASS];
+new g_class_explosion_damage[MAXROCKETCLASS];
+new g_class_explosion_push_strength[MAXROCKETCLASS];
+new g_class_explosion_radius[MAXROCKETCLASS];
+new g_class_explosion_fallof_radius[MAXROCKETCLASS];
+
+
+//Spawner
+new g_max_rockets;
+new Handle:g_class_chance;
+
+
+
 
 // ---- Plugin's CVars Management ----------------------------------------------
+/*
 new bool:g_Enabled;
 new bool:g_OnlyPyro;
 new Float:g_SpawnTime;
@@ -91,7 +205,7 @@ new Handle:db_InfoY;
 new Handle:db_MaxBounce;
 new Handle:db_BlockFT;
 new Handle:db_Delay;
-
+*/
 // ---- Server's CVars Management ----------------------------------------------
 new Handle:db_airdash;
 new Handle:db_push;
@@ -311,9 +425,9 @@ public Action:OnRoundStart(Handle:event, const String:name[], bool:dontBroadcast
 	g_onPreparation = false;
 	g_roundActive = true;
 	if(GetRandomInt(0,1))
-		CreateTimer(0.1, FireRocket,  TRED);
+		CreateTimer(0.1, FireRocket,  TEAM_RED);
 	else
-		CreateTimer(0.1, FireRocket,  TBLUE);
+		CreateTimer(0.1, FireRocket,  TEAM_BLUE);
 
 }
 
@@ -604,9 +718,9 @@ public Action:FireRocket(Handle:timer, any:rocketTeam)
 {
 	if(!g_Enabled || !g_isDBmap || !g_roundActive) return;
 	new spawner;
-	if(rocketTeam == TRED)
+	if(rocketTeam == TEAM_RED)
 		spawner = g_RedSpawn;
-	else if(rocketTeam == TBLUE)
+	else if(rocketTeam == TEAM_BLUE)
 		spawner = g_BlueSpawn;
 	else
 		SetFailState("Tried to fire a rocket for other team than red or blue.");
@@ -849,10 +963,10 @@ public OnEntityDestroyed(entity)
 		g_DeflectCount = 0;
 		if(g_roundActive)
 		{
-			if(rTeam == TRED)
-				CreateTimer(g_SpawnTime, FireRocket,  TBLUE);
-			else if(rTeam == TBLUE)
-				CreateTimer(g_SpawnTime, FireRocket,  TRED);
+			if(rTeam == TEAM_RED)
+				CreateTimer(g_SpawnTime, FireRocket,  TEAM_BLUE);
+			else if(rTeam == TEAM_BLUE)
+				CreateTimer(g_SpawnTime, FireRocket,  TEAM_RED);
 			if(g_ShowInfo)
 				ShowHud(g_SpawnTime,_,_,_,_);
 
