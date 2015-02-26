@@ -15,11 +15,13 @@ int g_RocketEntity[MAXROCKETS] = {-1,...};
 int g_RocketEntClass[MAXROCKETS] = {-1,...};
 int g_RocketBounces[MAXROCKETS] = {0,...};
 int g_RocketTarget[MAXROCKETS] = {-1,...};
+int g_RocketOwner[MAXROCKETS] = {-1,...};
 bool g_RocketAimed[MAXROCKETS] = {false,...};
-float g_RocketDirection[MAXROCKETS][3] = {{ 0.0, 0.0, 0.0},...};
+float g_RocketDirection[MAXROCKETS][3];
 int g_DeflectCount[MAXROCKETS] = {0,...};
 int g_observer[MAXROCKETS] = {-1,...};
 bool g_HomingEnabled[MAXROCKETS] = {true,...};
+Handle g_TimerBeep[MAXROCKETS] = {null,...};
 
 methodmap RocketEnt
 {
@@ -51,6 +53,11 @@ methodmap RocketEnt
 		public get() { return g_RocketTarget[ this.index ]; }
 		public set( int client ) { g_RocketTarget[ this.index ] = client; }
 	}
+	property int owner
+	{
+		public get() { return g_RocketOwner[ this.index ]; }
+		public set( int client ) { g_RocketOwner[ this.index ] = client; }
+	}
 	property bool aimed
 	{
 		public get() { return g_RocketAimed[ this.index ]; }
@@ -80,6 +87,11 @@ methodmap RocketEnt
 	{
 		public get() { return g_HomingEnabled[ this.index ]; }
 		public set( bool isHoming ) { g_HomingEnabled[ this.index ] = isHoming; }
+	}
+	property Handle beeptimer
+	{
+		public get() { return g_TimerBeep[ this.index ]; }
+		public set( Handle timer ) { g_TimerBeep[ this.index ] = timer; }
 	}
 }
 
@@ -115,6 +127,8 @@ char g_class_sound_deflect_blue[ROCKETCLASSNUM][PLATFORM_MAX_PATH];
 bool g_class_sound_beep_play[ROCKETCLASSNUM];
 char g_class_sound_beep[ROCKETCLASSNUM][PLATFORM_MAX_PATH];
 float g_class_sound_beep_interval[ROCKETCLASSNUM];
+bool g_class_sound_bounce_play[ROCKETCLASSNUM];
+char g_class_sound_bounce[ROCKETCLASSNUM][PLATFORM_MAX_PATH];
 bool g_class_sound_aimed_play[ROCKETCLASSNUM];
 char g_class_sound_aimed[ROCKETCLASSNUM][PLATFORM_MAX_PATH];
 //Explosion
@@ -199,7 +213,7 @@ methodmap RocketClass
 		public get() { return g_class_target_closest[ this.index ]; }
 		public set( bool tClosest ) { g_class_target_closest[ this.index ] = tClosest; }
 	}
-	property bool aimed
+	property bool allowaimed
 	{
 		public get() { return g_class_aimed_allow[ this.index ]; }
 		public set( bool allow ) { g_class_aimed_allow[ this.index ] = allow; }
@@ -269,6 +283,14 @@ methodmap RocketClass
 	public void GetSndAimed(char [] sound, int length) { strcopy(sound, length, g_class_sound_aimed[this.index]); }
 	public void SetSndAimed(char [] sound) { strcopy(g_class_sound_aimed[this.index], PLATFORM_MAX_PATH, sound); }
 	
+	property bool snd_bounce_use
+	{
+		public get() { return g_class_sound_bounce_play[ this.index ]; }
+		public set( bool allow ) { g_class_sound_bounce_play[ this.index ] = allow; }
+	}
+	public void GetSndBounce(char [] sound, int length) { strcopy(sound, length, g_class_sound_bounce[this.index]); }
+	public void SetSndBounce(char [] sound) { strcopy(g_class_sound_bounce[this.index], PLATFORM_MAX_PATH, sound); }
+	
 	//Explosion
 	property bool exp_use
 	{
@@ -299,21 +321,3 @@ methodmap RocketClass
 	
 	
 }
-
-
-/*
-// the rest in your plugin's implementation
-
-MyPlayerStruct g_PlayerFields[ MAXPLAYERS + 1 ];
-
-public void OnPluginStart()
-{
-	// init struct compat gunk
-	for ( int i = 1 ; i <= MaxClients ; ++i )
-	{
-		g_PlayerFields[ i ] = MyPlayerStruct( i );
-	}
-
-	// set client index 20's field value to 1
-	g_PlayerFields[ 20 ].Field = 1;
-}*/
