@@ -10,213 +10,93 @@
 #include <tf2attributes>
 #include <steamtools>
 
+//I use this so the compiler will warn about the old syntax
+#pragma newdecls required
+
+#include <dodgeball>
+
 // ---- Defines ----------------------------------------------------------------
-#define DB_VERSION "0.1.4"
+#define DB_VERSION "0.2.0"
 #define PLAYERCOND_SPYCLOAK (1<<4)
-
 #define MAXGENERIC 25
-#define MAXROCKETS 100
-#define MAXROCKETCLASS 25
 #define MAXMULTICOLORHUD 5
-
+#define MAXHUDNUMBER
 #define TEAM_RED 2
 #define TEAM_BLUE 3
+#define CLASS_PYRO 7
+#define CLASS_SPY 8
 
-/*
-#define PLAYER_SPEED 300.0
-#define BASE_SPEED 1100.0
-#define TRED 2
-#define TBLUE 3
-#define SOUND_SPAWN	"weapons/sentry_rocket.wav"
-#define SOUND_ALERT	"weapons/sentry_spot.wav"
-*/
 #define SOUND_ALERT_VOL	0.8
 #define HUD_LINE_SEPARATION 0.03
 
-//Colors
-/*
-#define DEF_R 63
-#define DEF_G 255
-#define DEF_B 127
-#define ALERT_R 255
-#define ALERT_G 0
-#define ALERT_B 0
-*/
-
-/*
-enum db_Hud
-{
-    Handle:hud_Speed,
-	Handle:hud_Reflects,
-    Handle:hud_Owner,
-    Handle:hud_Target,
-    Handle:hud_SuperShot
-}
-*/
-enum db_Hud
-{
-    Handle:hud_1,
-	Handle:hud_2,
-    Handle:hud_3,
-    Handle:hud_4,
-    Handle:hud_5,
-    Handle:hud_6
-}
-
 // ---- Variables --------------------------------------------------------------
-new bool:g_isDBmap = false;
-new bool:g_onPreparation = false;
-new bool:g_roundActive = false;
-new g_BlueSpawn = -1;
-new g_RedSpawn = -1;
-new g_HudSyncs[db_Hud];
-
-new g_RocketEnt[MAXROCKETS] = {-1,...};
-new g_RocketBounces[MAXROCKETS] = {0,...};
-new g_RocketTarget[MAXROCKETS] = {-1,...};
-new bool:g_RocketAimed[MAXROCKETS] = {false,...};
-new Float:g_RocketDirection[MAXROCKETS][3] = {{ 0.0, 0.0, 0.0},...};
-new g_DeflectCount[MAXROCKETS] = {0,...};
-new g_observer[MAXROCKETS] = {-1,...};
-new bool:g_MovEnabled[MAXROCKETS] = {true,...};
-
-/*
-new g_RocketEnt = -1;
-new g_RocketBounces = 0;
-new g_RocketTarget= -1;
-new bool:g_RocketAimed = false;
-new Float:g_RocketDirection[3] = { 0.0, 0.0, 0.0};
-new g_DeflectCount = 0;
-new g_observer = -1;
-new bool:g_MovEnabled = true;
-*/
+bool g_isDBmap = false;
+bool g_onPreparation = false;
+bool g_roundActive = false;
+bool g_canSpawn = false;
+int g_lastSpawned = false;
+int g_BlueSpawn = -1;
+int g_RedSpawn = -1;
+Handle g_HudSyncs[MAXHUDNUMBER];
+char g_mainfile[PLATFORM_MAX_PATH];
+char g_rocketclasses[PLATFORM_MAX_PATH];
+	
 
 // ---- Plugin's Configuration -------------------------------------------------
-new Float:g_player_speed;
-new bool:g_pyro_only;
-new bool:g_hud_show;
-new Float:g_hud_x;
-new Float:g_hud_y;
-new String:g_hud_color[32];
-new String:g_hud_aimed_text[PLATFORM_MAX_PATH];
-new String:g_hud_aimed_color[32];
+float g_player_speed;
+bool g_pyro_only;
+bool g_hud_show;
+float g_hud_x;
+float g_hud_y;
+char g_hud_color[32];
+char g_hud_aimed_text[PLATFORM_MAX_PATH];
+char g_hud_aimed_color[32];
 
 //Multi rocket color
-new bool:g_allow_multirocketcolor;
-new String:g_mrc_name[MAXMULTICOLORHUD][MAX_NAME_LENGTH];
-new String:g_mrc_color[MAXMULTICOLORHUD][32];
-new String:g_mrc_trail[MAXMULTICOLORHUD][PLATFORM_MAX_PATH];
-new bool:g_mrc_applycolor_model[MAXMULTICOLORHUD];
-new bool:g_mrc_applycolor_trail[MAXMULTICOLORHUD];
-
-//Command-config
-new Handle:g_CommandToBlock;
-new Handle:g_BlockOnlyOnPreparation;
+bool g_allow_multirocketcolor;
+char g_mrc_name[MAXMULTICOLORHUD][MAX_NAME_LENGTH];
+char g_mrc_color[MAXMULTICOLORHUD][32];
+char g_mrc_trail[MAXMULTICOLORHUD][PLATFORM_MAX_PATH];
+bool g_mrc_applycolor_model[MAXMULTICOLORHUD];
+bool g_mrc_applycolor_trail[MAXMULTICOLORHUD];
 
 //Sound-config
-new Handle:g_SndRoundStart;
-new Handle:g_SndOnDeath;
-new Float: g_OnKillDelay;
-new Handle:g_SndOnKill;
-new Handle:g_SndLastAlive;
+StringMap g_SndRoundStart;
+StringMap g_SndOnDeath;
+float g_OnKillDelay;
+StringMap g_SndOnKill;
+StringMap g_SndLastAlive;
 
 //Flamethrower restriction
-new Handle:g_RestrictedWeps;
+StringMap g_RestrictedWeps;
 
-//Rocket Classes//
-new String:g_class_section[MAXROCKETCLASS][MAX_NAME_LENGTH];
-new String:g_class_name[MAXROCKETCLASS][MAX_NAME_LENGTH];
-new String:g_class_trail[MAXROCKETCLASS][PLATFORM_MAX_PATH];
-new String:g_class_model[MAXROCKETCLASS][PLATFORM_MAX_PATH];
-new Float:g_class_size[MAXROCKETCLASS];
-new Float:g_class_size_inc[MAXROCKETCLASS];
-new Float:g_class_damage[MAXROCKETCLASS];
-new Float:g_class_damage_inc[MAXROCKETCLASS];
-new Float:g_class_speed[MAXROCKETCLASS];
-new Float:g_class_speed_inc[MAXROCKETCLASS];
-new Float:g_class_turnrate[MAXROCKETCLASS];
-new Float:g_class_turnrate_inc[MAXROCKETCLASS];
-new Float:g_class_deflect_delay[MAXROCKETCLASS];
-new bool:g_class_target_closest[MAXROCKETCLASS];
-new bool:g_class_aimed_allow[MAXROCKETCLASS];
-new Float:g_class_aimed_speed[MAXROCKETCLASS];
-new g_class_bounce_max[MAXROCKETCLASS];
-new Float:g_class_bounce_delay[MAXROCKETCLASS];
-//Rocket's sounds
-new bool:g_class_sound_spawn_play[MAXROCKETCLASS];
-new String:g_class_sound_spawn[MAXROCKETCLASS][PLATFORM_MAX_PATH];
-new bool:g_class_sound_alert_play[MAXROCKETCLASS];
-new String:g_class_sound_alert[MAXROCKETCLASS][PLATFORM_MAX_PATH];
-new bool:g_class_sound_deflect_play[MAXROCKETCLASS];
-new String:g_class_sound_deflect_red[MAXROCKETCLASS][PLATFORM_MAX_PATH];
-new String:g_class_sound_deflect_blue[MAXROCKETCLASS][PLATFORM_MAX_PATH];
-new bool:g_class_sound_beep_play[MAXROCKETCLASS];
-new String:g_class_sound_beep[MAXROCKETCLASS][PLATFORM_MAX_PATH];
-new Float:g_class_sound_beep_interval[MAXROCKETCLASS];
-new bool:g_class_sound_aimed_play[MAXROCKETCLASS];
-new String:g_class_sound_aimed[MAXROCKETCLASS][PLATFORM_MAX_PATH];
-//Explosion
-new bool:g_class_explosion_create[MAXROCKETCLASS];
-new g_class_explosion_damage[MAXROCKETCLASS];
-new g_class_explosion_push_strength[MAXROCKETCLASS];
-new g_class_explosion_radius[MAXROCKETCLASS];
-new g_class_explosion_fallof_radius[MAXROCKETCLASS];
+//Command-config
+StringMap g_CommandToBlock;
+StringMap g_BlockOnlyOnPreparation;
 
 
 //Spawner
-new g_max_rockets;
-new Handle:g_class_chance;
+int g_max_rockets;
+float g_spawn_delay;
+StringMap g_class_chance;
+
+//Rocket Classes and entities (will be an struct in the future)
+RocketClass g_RocketClass[MAXROCKETCLASS];
+int g_RocketClass_count;
+RocketEnt g_RocketEnt[MAXROCKETS];
 
 
-
-
-// ---- Plugin's CVars Management ----------------------------------------------
-/*
-new bool:g_Enabled;
-new bool:g_OnlyPyro;
-new Float:g_SpawnTime;
-new Float:g_BaseDamage;
-new Float:g_SpeedMul;
-new Float:g_DeflectInc;
-new Float:g_Turnrate;
-new bool:g_TargetClosest;
-new bool:g_AllowAim;
-new Float:g_AimedSpeedMul;
-new bool:g_ShowInfo;
-new Float:g_InfoX;
-new Float:g_InfoY;
-new g_MaxBounce;
-new bool:g_BlockFT;
-new Float:g_Delay;
-
-new Handle:db_Enabled;
-new Handle:db_OnlyPyro;
-new Handle:db_SpawnTime;
-new Handle:db_BaseDamage;
-new Handle:db_SpeedMul;
-new Handle:db_DeflectInc;
-new Handle:db_Turnrate;
-new Handle:db_TargetClosest;
-new Handle:db_AllowAim;
-new Handle:db_AimedSpeedMul;
-new Handle:db_ShowInfo;
-new Handle:db_InfoX;
-new Handle:db_InfoY;
-new Handle:db_MaxBounce;
-new Handle:db_BlockFT;
-new Handle:db_Delay;
-*/
 // ---- Server's CVars Management ----------------------------------------------
-new Handle:db_airdash;
-new Handle:db_push;
-new Handle:db_burstammo;
+Handle db_airdash;
+Handle db_push;
+Handle db_burstammo;
 
-new db_airdash_def = 1;
-new db_push_def = 1;
-new db_burstammo_def = 1;
+int db_airdash_def = 1;
+int db_push_def = 1;
+int db_burstammo_def = 1;
 
 // ---- Plugin's Information ---------------------------------------------------
-public Plugin:myinfo =
+public Plugin myinfo =
 {
 	name = "[TF2] Dodgeball Redux",
 	author = "Classic",
@@ -229,62 +109,19 @@ public Plugin:myinfo =
 **
 ** When the plugin is loaded.
 ** -------------------------------------------------------------------------- */
-public OnPluginStart()
+public void OnPluginStart()
 {
 	//Cvars
 	CreateConVar("sm_db_version", DB_VERSION, "Dogdeball Redux Version.", FCVAR_REPLICATED | FCVAR_PLUGIN | FCVAR_SPONLY | FCVAR_DONTRECORD | FCVAR_NOTIFY);
-	db_Enabled = CreateConVar("sm_db_enabled", "1", "Enables / Disables the Dodgeball Redux plugin.", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	db_OnlyPyro = CreateConVar("sm_db_onlypyro", "0", "Force players to pyro class.", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	db_SpawnTime = CreateConVar("sm_db_rocket_spawntime", "2.0", "Time that takes to re-spawn a new rocket.", FCVAR_PLUGIN, true, 0.1);
-	db_BaseDamage = CreateConVar("sm_db_rocket_basedamage", "200", "Base damage of the rocket. It will be bigger than this, because it will be crit. ", FCVAR_PLUGIN, true, 1.0);
-	db_SpeedMul = CreateConVar("sm_db_rocket_speedmul","0.9", "Value that the base rocket speed (1100) is multiplied by for the initial speed.", FCVAR_PLUGIN, true, 0.0);
-	db_DeflectInc = CreateConVar("sm_db_rocket_deflectinc", "0.05", "Increment of the speed on every reflect", FCVAR_PLUGIN, true, 0.0);
-	db_Turnrate = CreateConVar("sm_db_rocket_turnrate", "0.05", "Turn rate per tick" , FCVAR_PLUGIN, true, 0.0);
-	db_TargetClosest = CreateConVar("sm_db_target_closest", "1", "Select a the closest target on deflect. If it's 0 it will be random.", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	db_AllowAim = CreateConVar("sm_db_target_allowaim", "1", "If the player is aiming to another player, the rocket will go to that player.", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	db_AimedSpeedMul = CreateConVar("sm_db_aimedSpeedMul", "1.5", "Speed multiplier when a rocket is deflected aiming, this will revert after the next defelct.", FCVAR_PLUGIN, true, 0.0);
-	db_ShowInfo = CreateConVar("sm_db_showinfo", "1", "Shows Rocket's information on screen",FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	db_InfoX = CreateConVar("sm_db_info_x", "0.03", "X position of the rocket's information.",FCVAR_PLUGIN, true, -1.0, true, 1.0);
-	db_InfoY = CreateConVar("sm_db_info_y", "0.21", "Y position of the rocket's information (first line).",FCVAR_PLUGIN, true, -1.0, true, 1.0);
-	db_MaxBounce = CreateConVar("sm_db_maxbounce", "10", "Max time that a rocket can bounce on walls.",FCVAR_PLUGIN, true, 0.0);
-	db_BlockFT = CreateConVar("sm_db_block_flamethrower", "1", "If true, the plugin would block the rainblower and the Degreaser",FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	db_Delay = CreateConVar("sm_db_rocket_delay", "0.1", "Rocket delay after being reflected in seconds.",FCVAR_PLUGIN, true, 0.0);
 	
-	//Defaults variables values
-	g_Enabled = GetConVarBool(db_Enabled);
-	g_OnlyPyro = GetConVarBool(db_OnlyPyro);
-	g_SpawnTime = GetConVarFloat(db_SpawnTime);
-	g_BaseDamage = GetConVarFloat(db_BaseDamage);
-	g_SpeedMul = GetConVarFloat(db_SpeedMul);
-	g_DeflectInc = GetConVarFloat(db_DeflectInc);
-	g_Turnrate = GetConVarFloat(db_Turnrate);
-	g_TargetClosest = GetConVarBool(db_TargetClosest);
-	g_AllowAim = GetConVarBool(db_AllowAim);
-	g_AimedSpeedMul = GetConVarFloat(db_AimedSpeedMul);
-	g_ShowInfo = GetConVarBool(db_ShowInfo);
-	g_InfoX = GetConVarFloat(db_InfoX);
-	g_InfoY = GetConVarFloat(db_InfoY);
-	g_MaxBounce = GetConVarInt(db_MaxBounce);
-	g_BlockFT = GetConVarBool(db_BlockFT);
-	g_Delay = GetConVarFloat(db_Delay);
-	
-	//Cvars's hook
-	HookConVarChange(db_Enabled, OnCVarChange);
-	HookConVarChange(db_OnlyPyro, OnCVarChange);
-	HookConVarChange(db_SpawnTime, OnCVarChange);
-	HookConVarChange(db_BaseDamage, OnCVarChange);
-	HookConVarChange(db_SpeedMul, OnCVarChange);
-	HookConVarChange(db_DeflectInc, OnCVarChange);
-	HookConVarChange(db_Turnrate, OnCVarChange);
-	HookConVarChange(db_TargetClosest, OnCVarChange);
-	HookConVarChange(db_AllowAim, OnCVarChange);
-	HookConVarChange(db_AimedSpeedMul, OnCVarChange);
-	HookConVarChange(db_ShowInfo, OnCVarChange);
-	HookConVarChange(db_InfoX, OnCVarChange);
-	HookConVarChange(db_InfoY, OnCVarChange);
-	HookConVarChange(db_MaxBounce, OnCVarChange);
-	HookConVarChange(db_BlockFT, OnCVarChange);
-	HookConVarChange(db_Delay, OnCVarChange);
+	//Creation of Tries
+	g_CommandToBlock = CreateTrie();
+	g_BlockOnlyOnPreparation = CreateTrie();
+	g_SndRoundStart = CreateTrie();
+	g_SndOnDeath = CreateTrie();
+	g_SndOnKill = CreateTrie();
+	g_SndLastAlive = CreateTrie();
+	g_RestrictedWeps = CreateTrie();
 	
 	//Server's Cvars
 	db_airdash = FindConVar("tf_scout_air_dash_count");
@@ -292,12 +129,16 @@ public OnPluginStart()
 	db_burstammo = FindConVar("tf_flamethrower_burstammo");
 
 	//HUD
-	g_HudSyncs[hud_Speed] = CreateHudSynchronizer();
-	g_HudSyncs[hud_Reflects] = CreateHudSynchronizer();
-	g_HudSyncs[hud_Owner] = CreateHudSynchronizer();
-	g_HudSyncs[hud_Target] = CreateHudSynchronizer();
-	g_HudSyncs[hud_SuperShot] = CreateHudSynchronizer();
-	
+	for(int i = 0; i < MAXHUDNUMBER; i++)
+		g_HudSyncs[i]= CreateHudSynchronizer();
+
+	//Rocket classes
+	for(int i = 0; i < MAXROCKETCLASS; ++i 
+		g_RocketClass[i] = RocketClass(i);
+	//Rocket entities
+	for(int i = 0; i < MAXROCKETS; ++i 
+		g_RocketEnt[i] = RocketEnt(i);
+		
 	//Hooks
 	HookEvent("teamplay_round_start", OnPrepartionStart);
 	HookEvent("arena_round_start", OnRoundStart); 
@@ -306,71 +147,33 @@ public OnPluginStart()
 	HookEvent("teamplay_round_win", OnRoundEnd);
 	HookEvent("teamplay_round_stalemate", OnRoundEnd);
 	
-	AddCommandListener(Command_Block,"kill");
-	AddCommandListener(Command_Block,"explode");
-	
-	AutoExecConfig(true, "plugin.dodgeball_redux");
+	BuildPath(Path_SM, g_mainfile, PLATFORM_MAX_PATH, "data/dodgeball/dodgeball.cfg");
+	BuildPath(Path_SM, g_rocketclasses, PLATFORM_MAX_PATH, "data/dodgeball/rocketclasses.cfg");
 }
 
-/* OnCVarChange()
-**
-** We edit the global variables values when their corresponding cvar changes.
-** -------------------------------------------------------------------------- */
-public OnCVarChange(Handle:convar, const String:oldValue[], const String:newValue[])
-{
-	if(convar ==  db_Enabled)
-		g_Enabled = GetConVarBool(db_Enabled);
-	else if(convar ==  db_OnlyPyro)
-		g_OnlyPyro = GetConVarBool(db_OnlyPyro);
-	else if(convar ==  db_SpawnTime)
-		g_SpawnTime = GetConVarFloat(db_SpawnTime);
-	else if(convar ==  db_BaseDamage)
-		g_BaseDamage = GetConVarFloat(db_BaseDamage);
-	else if(convar ==  db_SpeedMul)
-		g_SpeedMul = GetConVarFloat(db_SpeedMul);
-	else if(convar ==  db_DeflectInc)
-		g_DeflectInc = GetConVarFloat(db_DeflectInc);
-	else if(convar ==  db_Turnrate)
-		g_Turnrate = GetConVarFloat(db_Turnrate);
-	else if(convar ==  db_TargetClosest)		
-		g_TargetClosest = GetConVarBool(db_TargetClosest);
-	else if(convar ==  db_AllowAim)
-		g_AllowAim = GetConVarBool(db_AllowAim);
-	else if(convar ==  db_AimedSpeedMul)
-		g_AimedSpeedMul = GetConVarFloat(db_AimedSpeedMul);
-	else if(convar ==  db_ShowInfo)		
-		g_ShowInfo = GetConVarBool(db_ShowInfo);
-	else if(convar ==  db_MaxBounce)		
-		g_MaxBounce = GetConVarInt(db_MaxBounce);
-	else if(convar ==  db_BlockFT)		
-		g_BlockFT = GetConVarBool(db_BlockFT);
-	else if(convar ==  db_InfoX)	
-		g_InfoX = GetConVarFloat(db_InfoX);
-	else if(convar ==  db_InfoY)	
-		g_InfoY = GetConVarFloat(db_InfoY);
-	else if(convar ==  db_Delay)	
-		g_Delay = GetConVarFloat(db_Delay);
-
-}
 
 /* OnMapStart()
 **
 ** Here we reset every global variable, and we check if the current map is a dodgeball map.
 ** If it is a db map, we get the cvars def. values and the we set up our own values.
 ** -------------------------------------------------------------------------- */
-public OnMapStart()
+public void OnMapStart()
 {	
-	decl String:mapname[128];
+	char mapname[128];
 	GetCurrentMap(mapname, sizeof(mapname));
-	if (g_Enabled && (strncmp(mapname, "db_", 3, false) == 0 || (strncmp(mapname, "tfdb_", 5, false) == 0) ))
+	if (strncmp(mapname, "db_", 3, false) == 0 || (strncmp(mapname, "tfdb_", 5, false) == 0) )
 	{
 		LogMessage("[DB] Dodgeball map detected. Enabling Dodgeball Gamemode.");
 		g_isDBmap = true;
 		Steam_SetGameDescription("Dodgeball Redux");
 		AddServerTag("dodgeball");
-		// Precache sounds
-		PrecacheSound(SOUND_SPAWN, true);
-		PrecacheSound(SOUND_ALERT, true);
+		
+		LoadRocketClasses();
+		LoadConfigs();
+		LoadMapConfigs();
+		
+		PrecacheFiles();
+		ProcessListeners();
 	}
  	else
 	{
@@ -390,13 +193,400 @@ public OnMapEnd()
 	ResetCvars();
 }
 
+/* LoadRocketClasses()
+**
+** Here we parse data/dodgeball/rocketclasses.cfg
+** -------------------------------------------------------------------------- */
+void LoadRocketClasses()
+{
+	if(!FileExists(g_rocketclasses))
+	{
+		SetFailState("Configuration file %s not found!", g_rocketclasses);
+		return;
+	}
+	KeyValues kv =  CreateKeyValues("rocketclasses");
+	if(kv.ImportFromFile(g_rocketclasses))
+	{
+		SetFailState("Improper structure for configuration file %s!", g_rocketclasses);
+		return;
+	}
+	if(!kv.JumpToKey("default"))
+	{
+		SetFailState("Missing default section on configuration file %s!", g_rocketclasses);
+		return;
+	}
+	RocketClass defClass = RocketClass(DEF_C);
+	char name[MAX_NAME_LENGTH], auxPath[PLATFORM_MAX_PATH];
+	//Rocket Name (section name)
+	kv.GetSectionName(name,MAX_NAME_LENGTH);
+	defClass.SetName(name);
+	//Trail
+	kv.GetString("Trail",auxPath,PLATFORM_MAX_PATH,"");
+	defClass.SetTrail(auxPath);
+	//Model
+	kv.GetString("Model",auxPath,PLATFORM_MAX_PATH,"");
+	defClass.SetModel(auxPath);
+	defClass.size = kv.GetFloat("ModelSize",1.0);
+	defClass.sizeinc = kv.GetFloat("DeflectSizeInc",0.0);
+	//Damage
+	defClass.damage = kv.GetFloat("BaseDamage",200.0);
+	defClass.damageinc = kv.GetFloat("DeflectDamageInc",0.0);
+	//Speed
+	defClass.speed = kv.GetFloat("BaseSpeed",1100.0);
+	defClass.speedinc = kv.GetFloat("DeflectSpeedInc",50.0);
+	//Turnrate
+	defClass.turnrate = kv.GetFloat("TurnRate",0.05);
+	defClass.turnrateinc = kv.GetFloat("DeflectTurnRateInc",0.005);
+	//On deflect
+	defClass.deflectdelay = kv.GetFloat("DeflectDelay",0.1);
+	defClass.targetclosest = view_as<bool>kv.GetNum("TargetClosest",0);
+	defClass.aimed = view_as<bool>kv.GetNum("AllowAimed",0);
+	defClass.aimedspeed = kv.GetFloat("AimedSpeed",2500.0);
+	//Bounce
+	defClass.maxbounce = kv.GetNum("MaxBounce",10);
+	defClass.bouncedelay = kv.GetFloat("BouceDelay",0.1);
+	
+	//Sounds
+	if(kv.JumpToKey("sounds"))
+	{
+		//Spawn
+		defClass.snd_spawn_use = view_as<bool>kv.GetNum("PlaySpawnSound",1);
+		kv.GetString("SpawnSound",auxPath,PLATFORM_MAX_PATH,"");
+		defClass.SetSndSpawn(auxPath);
+		//Alert
+		defClass.snd_alert_use = view_as<bool>kv.GetNum("PlayAlertSound",1);
+		kv.GetString("AlertSound",auxPath,PLATFORM_MAX_PATH,"");
+		defClass.SetSndAlert(auxPath);
+		//Deflect
+		defClass.snd_deflect_use = view_as<bool>kv.GetNum("PlayDeflectSound",1);
+		kv.GetString("RedDeflectSound",auxPath,PLATFORM_MAX_PATH,"");
+		defClass.SetSndDeflectRed(auxPath);
+		kv.GetString("BlueDeflectSound",auxPath,PLATFORM_MAX_PATH,"");
+		defClass.SetSndDeflectBlue(auxPath);
+		//Beep
+		defClass.snd_beep_use = view_as<bool>kv.GetNum("PlayBeepSound",1);
+		kv.GetString("BeepSound",auxPath,PLATFORM_MAX_PATH,"");
+		defClass.SetSndBeep(auxPath);
+		defClass.snd_beep_delay = kv.GetFloat("BeepInterval",1.0);
+		//Aimed
+		defClass.snd_aimed_use = view_as<bool>kv.GetNum("PlayAimedSound",1);
+		kv.GetString("AimedSound",auxPath,PLATFORM_MAX_PATH,"");
+		defClass.SetSndAimed(auxPath);
+		kv.GoBack();
+	}
+	//Explosion
+	if(kv.JumpToKey("explosion"))
+	{
+		defClass.exp_use = view_as<bool>kv.GetNum("CreateBigExplosion",0);
+		defClass.exp_damage = kv.GetNum("Damage",200);
+		defClass.exp_push = kv.GetNum("PushStrength",1000);
+		defClass.exp_radius = kv.GetNum("Radius",1000);
+		defClass.exp_fallof = kv.GetNum("FallOfRadius",600);
+		kv.GoBack();
+	}
+	
+	
+	//Here we read all the classes
+	if(!kv.JumpToKey("Classes"))
+	{
+		SetFailState("Missing Classes section on configuration file %s!", g_rocketclasses);
+		return;
+	}
+	int count = 0;
+	kv.GotoFirstSubKey();
+	do
+    {
+		//Rocket Name (section name)
+		kv.GetSectionName(name,MAX_NAME_LENGTH);
+		g_RocketClass[count].SetName(name);
+		//Trail
+		defClass.GetTrail(auxPath,PLATFORM_MAX_PATH);
+		kv.GetString("Trail",auxPath,PLATFORM_MAX_PATH,auxPath);
+		g_RocketClass[count].SetTrail(auxPath);
+		//Model
+		defClass.GetModel(auxPath,PLATFORM_MAX_PATH);
+		kv.GetString("Model",auxPath,PLATFORM_MAX_PATH,auxPath);
+		g_RocketClass[count].SetModel(auxPath);
+		g_RocketClass[count].size = kv.GetFloat("ModelSize",defClass.size);
+		g_RocketClass[count].sizeinc = kv.GetFloat("DeflectSizeInc",defClass.sizeinc);
+		//Damage
+		g_RocketClass[count].damage = kv.GetFloat("BaseDamage",defClass.damage);
+		g_RocketClass[count].damageinc = kv.GetFloat("DeflectDamageInc",defClass.damageinc);
+		//Speed
+		g_RocketClass[count].speed = kv.GetFloat("BaseSpeed",defClass.speed);
+		g_RocketClass[count].speedinc = kv.GetFloat("DeflectSpeedInc",defClass.speedinc);
+		//Turnrate
+		g_RocketClass[count].turnrate = kv.GetFloat("TurnRate",defClass.turnrate);
+		g_RocketClass[count].turnrateinc = kv.GetFloat("DeflectTurnRateInc",defClass.turnrateinc);
+		//On deflect
+		g_RocketClass[count].deflectdelay = kv.GetFloat("DeflectDelay",defClass.deflectdelay);
+		g_RocketClass[count].targetclosest = view_as<bool>kv.GetNum("TargetClosest",defClass.targetclosest);
+		g_RocketClass[count].aimed = view_as<bool>kv.GetNum("AllowAimed",defClass.aimed);
+		g_RocketClass[count].aimedspeed = kv.GetFloat("AimedSpeed",defClass.aimedspeed);
+		//Bounce
+		g_RocketClass[count].maxbounce = kv.GetNum("MaxBounce",defClass.maxbounce);
+		g_RocketClass[count].bouncedelay = kv.GetFloat("BouceDelay",defClass.bouncedelay);
+		
+		//Sounds
+		if(kv.JumpToKey("sounds"))
+		{
+			//Spawn
+			g_RocketClass[count].snd_spawn_use = view_as<bool>kv.GetNum("PlaySpawnSound",defClass.snd_spawn_use);
+			defClass.GetSndSpawn(auxPath,PLATFORM_MAX_PATH);
+			kv.GetString("SpawnSound",auxPath,PLATFORM_MAX_PATH,auxPath);
+			g_RocketClass[count].SetSndSpawn(auxPath);
+			//Alert
+			g_RocketClass[count].snd_alert_use = view_as<bool>kv.GetNum("PlayAlertSound",defClass.snd_alert_use);
+			defClass.GetSndAlert(auxPath,PLATFORM_MAX_PATH);
+			kv.GetString("AlertSound",auxPath,PLATFORM_MAX_PATH,auxPath);
+			g_RocketClass[count].SetSndAlert(auxPath);
+			//Deflect
+			g_RocketClass[count].snd_deflect_use = view_as<bool>kv.GetNum("PlayDeflectSound",defClass.snd_deflect_use);
+			defClass.GetSndDeflectRed(auxPath,PLATFORM_MAX_PATH);
+			kv.GetString("RedDeflectSound",auxPath,PLATFORM_MAX_PATH,auxPath);
+			g_RocketClass[count].SetSndDeflectRed(auxPath);
+			defClass.GetSndDeflectBlue(auxPath,PLATFORM_MAX_PATH);
+			kv.GetString("BlueDeflectSound",auxPath,PLATFORM_MAX_PATH,auxPath);
+			g_RocketClass[count].SetSndDeflectBlue(auxPath);
+			//Beep
+			g_RocketClass[count].snd_beep_use = view_as<bool>kv.GetNum("PlayBeepSound",defClass.snd_beep_use);
+			defClass.GetSndBeep(auxPath,PLATFORM_MAX_PATH);
+			kv.GetString("BeepSound",auxPath,PLATFORM_MAX_PATH,auxPath);
+			g_RocketClass[count].SetSndBeep(auxPath);
+			g_RocketClass[count].snd_beep_delay = kv.GetFloat("BeepInterval",defClass.snd_beep_delay);
+			//Aimed
+			g_RocketClass[count].snd_aimed_use = view_as<bool>kv.GetNum("PlayAimedSound",defClass.snd_aimed_use);
+			defClass.GetSndAimed(auxPath,PLATFORM_MAX_PATH);
+			kv.GetString("AimedSound",auxPath,PLATFORM_MAX_PATH,auxPath);
+			g_RocketClass[count].SetSndAimed(auxPath);
+			kv.GoBack();
+		}
+		//Explosion
+		if(kv.JumpToKey("explosion"))
+		{
+			g_RocketClass[count].exp_use = view_as<bool>kv.GetNum("CreateBigExplosion",defClass.exp_use);
+			g_RocketClass[count].exp_damage = kv.GetNum("Damage",defClass.exp_damage);
+			g_RocketClass[count].exp_push = kv.GetNum("PushStrength",defClass.exp_push);
+			g_RocketClass[count].exp_radius = kv.GetNum("Radius",defClass.exp_radius);
+			g_RocketClass[count].exp_fallof = kv.GetNum("FallOfRadius",defClass.exp_fallof);
+			kv.GoBack();
+		}
+		count++;
+	}
+    while (kv.GotoNextKey() && count < MAXROCKETCLASS);
+	delete kv;
+	g_RocketClass_count = count;
+	LogMessage("[DB] Loaded %d rocket classes.");
+		
+}
+
+/* LoadConfigs()
+**
+** Here we parse data/dodgeball/dodgeball.cfg
+** -------------------------------------------------------------------------- */
+void LoadConfigs()
+{
+	if(!FileExists(g_mainfile))
+	{
+		SetFailState("Configuration file %s not found!", g_mainfile);
+		return;
+	}
+	KeyValues kv =  CreateKeyValues("dodgeball");
+	if(kv.ImportFromFile(g_mainfile))
+	{
+		SetFailState("Improper structure for configuration file %s!", g_mainfile);
+		return;
+	}
+	//Here we clean the Tries
+	g_SndRoundStart.Clear();
+	g_SndOnDeath.Clear();
+	g_SndOnKill.Clear();
+	g_SndLastAlive.Clear();
+	g_RestrictedWeps.Clear();
+	g_CommandToBlock.Clear();
+	g_BlockOnlyOnPreparation.Clear();
+	g_class_chance.Clear();
+	
+	//Main configuration
+	g_player_speed = kv.GetFloat("PlayerSpeed", 300.0);
+	g_pyro_only = view_as<bool>kv.GetNum("OnlyPyro",0);
+	g_hud_show = view_as<bool>kv.GetNum("ShowHud",0);
+	g_hud_x = kv.GetFloat("Xpos", 0.03);
+	g_hud_y = kv.GetFloat("Ypos", 0.21);
+	kv.GetString("color",g_hud_color,32,"63 255 127");
+	kv.GetString("supershottext",g_hud_aimed_text,PLATFORM_MAX_PATH,"Super Shot!");
+	kv.GetString("supershotcolor",g_hud_aimed_color,32,"63 255 127");
+	
+	if(kv.JumpToKey("spawner"))
+	{
+		g_max_rockets = kv.GetNum("MaxRockets", 2);
+		g_spawn_delay = kv.GetFloat("SpawnDelay"2.0);
+		if(kv.JumpToKey("chances"))
+		{
+			char rocketname[MAX_NAME_LENGTH];
+			for(int i = 0; i < g_RocketClass_count; i++)
+			{
+				g_RocketClass[i].GetName(rocketname,MAX_NAME_LENGTH)
+				g_class_chance.SetValue(rocketname, kv.GetNum(rocketname,0);
+			}
+			kv.GoBack();
+		}
+		kv.GoBack();
+	}
+	
+	if(kv.JumpToKey("multirocketcolor"))
+	{
+		g_allow_multirocketcolor = view_as<bool>kv.GetNum("AllowMultiRocketColor", 1);
+		
+		int count = 0;
+		kv.GotoFirstSubKey();
+		do
+		{
+			kv.GetString("colorname",g_mrc_name[count],PLATFORM_MAX_PATH,"");
+			kv.GetString("color",g_mrc_color[count],32,"255 255 255");
+			kv.GetString("trail",g_mrc_trail[count],PLATFORM_MAX_PATH,"");
+			g_mrc_applycolor_model[count] = view_as<bool>kv.GetNum("applycolormodel", 1);
+			g_mrc_applycolor_trail[count] = view_as<bool>kv.GetNum("applycolortrail", 1);
+			count++;
+		}
+		while (kv.GotoNextKey() && count < MAXMULTICOLORHUD);
+	
+		kv.GoBack();
+	}
+	if(kv.JumpToKey("sounds"))
+	{
+		char key[4], sndFile[PLATFORM_MAX_PATH];
+		if(kv.JumpToKey("RoundStart"))
+		{
+			for(int i=1; i<MAXGENERIC; i++)
+			{
+				IntToString(i, key, sizeof(key));
+				kv.GetString(key, sndFile, sizeof(sndFile),"");
+				if(StrEqual(sndFile, ""))
+					break;			
+				g_SndRoundStart.SetString(key,sndFile);
+			}
+			kv.GoBack();
+		}
+		if(kv.JumpToKey("OnDeath"))
+		{
+			for(int i=1; i<MAXGENERIC; i++)
+			{
+				IntToString(i, key, sizeof(key));
+				kv.GetString(key, sndFile, sizeof(sndFile),"");
+				if(StrEqual(sndFile, ""))
+					break;			
+				g_SndOnDeath.SetString(key,sndFile);
+			}
+			kv.GoBack();
+		}
+		if(kv.JumpToKey("OnKill"))
+		{
+			g_OnKillDelay = kv.GetFloat("delay",5.0);
+			for(int i=1; i<MAXGENERIC; i++)
+			{
+				IntToString(i, key, sizeof(key));
+				kv.GetString(key, sndFile, sizeof(sndFile),"");
+				if(StrEqual(sndFile, ""))
+					break;			
+				g_SndOnKill.SetString(key,sndFile);
+			}
+			kv.GoBack();
+		}
+		if(kv.JumpToKey("LastAlive"))
+		{
+			for(int i=1; i<MAXGENERIC; i++)
+			{
+				IntToString(i, key, sizeof(key));
+				kv.GetString(key, sndFile, sizeof(sndFile),"");
+				if(StrEqual(sndFile, ""))
+					break;			
+				g_SndLastAlive.SetString(key,sndFile);
+			}
+			kv.GoBack();
+		}
+		kv.GoBack();		
+	}
+	if(kv.JumpToKey("blockedflamethrowers"))
+	{
+		char key[4];
+		int auxInt;
+		for(int i=1; i<MAXGENERIC; i++)
+		{
+			IntToString(i, key, sizeof(key));
+			auxInt = kv.GetNum(key, -1);
+			if(auxInt == -1)
+				break;
+			g_RestrictedWeps.SetValue(key,auxInt);
+		}
+		
+		kv.GoBack();	
+	}
+	if(kv.JumpToKey("blockcommands"))
+	{
+		do
+		{
+			char SectionName[128], CommandName[128];
+			int onprep;
+			kv.GotoFirstSubKey();
+			kv.GetSectionName( SectionName, sizeof(SectionName));
+			
+			kv.GetString("command", CommandName, sizeof(CommandName));
+			onprep = kv.GetNum("OnlyOnPreparation", 1);
+			
+			if(!StrEqual(CommandName, ""))
+			{
+				g_CommandToBlock.SetString(SectionName,CommandName);
+				g_BlockOnlyOnPreparation.SetValue(SectionName,onprep);
+			}
+		}
+		while(kv.GotoNextKey());
+		kv.GoBack();	
+	}
+	
+	
+	delete kv;
+	
+	char mapfile[PLATFORM_MAX_PATH], mapname[128];
+	GetCurrentMap(mapname, sizeof(mapname));
+	BuildPath(Path_SM, mapfile, sizeof(mapfile), "data/dodgeball/maps/%s.cfg",mapname);
+	
+	if(FileExists(mapfile))
+	{
+		KeyValues kv =  CreateKeyValues("dodgeball");
+		if(kv.ImportFromFile(g_mainfile))
+		{
+			SetFailState("Improper structure for configuration file %s!", g_mainfile);
+			return;
+		}
+		if(kv.JumpToKey("spawner"))
+		{
+			g_max_rockets = kv.GetNum("MaxRockets", g_max_rockets);
+			g_spawn_delay = kv.GetFloat("SpawnDelay", g_spawn_delay);
+			if(kv.JumpToKey("chances"))
+			{
+				g_class_chance.Clear();
+				char rocketname[MAX_NAME_LENGTH];
+				for(int i = 0; i < g_RocketClass_count; i++)
+				{
+					g_RocketClass[i].GetName(rocketname,MAX_NAME_LENGTH)
+					g_class_chance.SetValue(rocketname, kv.GetNum(rocketname,0);
+				}
+				kv.GoBack();
+			}
+			kv.GoBack();
+		}
+	}
+	delete kv;
+}
+
 /* OnPrepartionStart()
 **
 ** We setup the cvars again and we freeze the players.
 ** -------------------------------------------------------------------------- */
-public Action:OnPrepartionStart(Handle:event, const String:name[], bool:dontBroadcast)
+public Action OnPrepartionStart(Handle event, const char name[], bool dontBroadcast)
 {
-	if(!g_Enabled || !g_isDBmap) return;
+	if(!g_isDBmap) return;
 	
 	g_onPreparation = true;
 	
@@ -404,30 +594,33 @@ public Action:OnPrepartionStart(Handle:event, const String:name[], bool:dontBroa
 	SetupCvars();
 
 	//Players shouldn't move until the round starts
-	for(new i = 1; i <= MaxClients; i++)
+	for(int i = 1; i <= MaxClients; i++)
 		if(IsClientInGame(i) && IsPlayerAlive(i))
 			SetEntityMoveType(i, MOVETYPE_NONE);	
-	if(g_ShowInfo)
-		ShowHud(20.0,_,_,_,_);
+	//if(g_ShowInfo)
+	//	ShowHud(20.0,_,_,_,_);
 }
 
 /* OnRoundStart()
 **
 ** We unfreeze every player and we start the rocket timer
 ** -------------------------------------------------------------------------- */
-public Action:OnRoundStart(Handle:event, const String:name[], bool:dontBroadcast)
+public Action OnRoundStart(Handle event, const charname[], bool dontBroadcast)
 {
-	if(!g_Enabled || !g_isDBmap) return;
+	if(!g_isDBmap) return;
 	SearchSpawns();
-	for(new i = 1; i <= MaxClients; i++)
+	for(int i = 1; i <= MaxClients; i++)
 		if(IsClientInGame(i) && IsPlayerAlive(i))
 				SetEntityMoveType(i, MOVETYPE_WALK);
 	g_onPreparation = false;
 	g_roundActive = true;
+	g_canSpawn = false;
 	if(GetRandomInt(0,1))
-		CreateTimer(0.1, FireRocket,  TEAM_RED);
+		g_lastSpawned = TEAM_RED
 	else
-		CreateTimer(0.1, FireRocket,  TEAM_BLUE);
+		g_lastSpawned = TEAM_BLUE
+	
+	FireRocket();
 
 }
 
@@ -435,14 +628,14 @@ public Action:OnRoundStart(Handle:event, const String:name[], bool:dontBroadcast
 **
 ** Here we destroy the rocket.
 ** -------------------------------------------------------------------------- */
-public Action:OnRoundEnd(Handle:event, const String:name[], bool:dontBroadcast)
+public Action OnRoundEnd(Handle event, const char name[], bool dontBroadcast)
 {
 	g_roundActive=false;
-	if(g_RocketEnt != -1)
+	/*if(g_RocketEnt != -1)
 	{	
 		if (IsValidEntity(g_RocketEnt)) 
 			RemoveEdict(g_RocketEnt);
-	}
+	}*/
 }
 
 /* TF2Items_OnGiveNamedItem_Post()
@@ -451,21 +644,19 @@ public Action:OnRoundEnd(Handle:event, const String:name[], bool:dontBroadcast)
 ** -------------------------------------------------------------------------- */
 public TF2Items_OnGiveNamedItem_Post(client, String:classname[], index, level, quality, ent)
 {
-	if(g_isDBmap && g_Enabled)
-	{
-		//tf_weapon_builder tf_wearable_demoshield
-		if(StrEqual(classname,"tf_weapon_builder", false) || StrEqual(classname,"tf_wearable_demoshield", false))
-			CreateTimer(0.1, Timer_RemoveWep, EntIndexToEntRef(ent));  
-	}
+	if(!g_isDBmap)	return;
+	//tf_weapon_builder tf_wearable_demoshield
+	if(StrEqual(classname,"tf_weapon_builder", false) || StrEqual(classname,"tf_wearable_demoshield", false))
+		CreateTimer(0.1, Timer_RemoveWep, EntIndexToEntRef(ent));  
 }
 
 /* Timer_RemoveWep()
 **
 ** We kill the demoshield/sapper
 ** -------------------------------------------------------------------------- */
-public Action:Timer_RemoveWep(Handle:timer, any:ref)
+public Action Timer_RemoveWep(Handle timer, int ref)
 {
-	new ent = EntRefToEntIndex(ref);
+	int ent = EntRefToEntIndex(ref);
 	if( IsValidEntity(ent) && ent > MaxClients)
 		AcceptEntityInput(ent, "Kill");
 }  
@@ -475,114 +666,106 @@ public Action:Timer_RemoveWep(Handle:timer, any:ref)
 ** Here we strip players weapons (if we have to).
 ** Also we give special melee weapons (again, if we have to).
 ** -------------------------------------------------------------------------- */
-public Action:OnPlayerInventory(Handle:event, const String:name[], bool:dontBroadcast)
+public Action OnPlayerInventory(Handle event, const char name[], bool dontBroadcast)
 {
-	if(g_Enabled && g_isDBmap)
-	{
-		new bool:replace_primary = true;
-		new client = GetClientOfUserId(GetEventInt(event, "userid"));
-		
-		
-		TF2_RemoveWeaponSlot(client, TFWeaponSlot_Secondary);
-		TF2_RemoveWeaponSlot(client, TFWeaponSlot_Melee);
-		TF2_RemoveWeaponSlot(client, TFWeaponSlot_Grenade);
-		TF2_RemoveWeaponSlot(client, TFWeaponSlot_Building);
-		TF2_RemoveWeaponSlot(client, TFWeaponSlot_PDA);
-		
-		//We kill the demomen's shield on this preparation.
-		/*new ent = -1;
-		while ((ent = FindEntityByClassname(ent, "tf_wearable_demoshield")) != -1)
-		{
-			AcceptEntityInput(ent, "kill");
-		}
-		*/
-		decl String:classname[64];
-		new wep_ent = GetPlayerWeaponSlot(client, TFWeaponSlot_Primary);
-		if(wep_ent > MaxClients && IsValidEntity(wep_ent))
-		{
-			new wep_index = GetEntProp(wep_ent, Prop_Send, "m_iItemDefinitionIndex"); 
-			if (wep_ent > MaxClients && IsValidEdict(wep_ent) && GetEdictClassname(wep_ent, classname, sizeof(classname)))
-			{	
-				if (StrEqual(classname, "tf_weapon_flamethrower", false) )
-				{
-					if( (wep_index != 215 && wep_index != 741) || !g_BlockFT)
-					{
-						//This attribute disables the airblast effect on players
-						TF2Attrib_SetByDefIndex(wep_ent, 254, 4.0);
-						replace_primary = false; 
-					}
-				}
-			}
-		}
-		if(replace_primary)
-		{
-		
-			TF2_RemoveWeaponSlot(client, TFWeaponSlot_Primary);
-			
-			new Handle:hItem = TF2Items_CreateItem(FORCE_GENERATION | OVERRIDE_CLASSNAME | OVERRIDE_ITEM_DEF | OVERRIDE_ITEM_LEVEL | OVERRIDE_ITEM_QUALITY | OVERRIDE_ATTRIBUTES);
-			TF2Items_SetClassname(hItem, "tf_weapon_flamethrower");
-			TF2Items_SetItemIndex(hItem, 21);
-			TF2Items_SetLevel(hItem, 69);
-			TF2Items_SetQuality(hItem, 6);
-			TF2Items_SetAttribute(hItem, 0, 254, 4.0); //Can't push other players
-			TF2Items_SetNumAttributes(hItem, 1);
-			new iWeapon = TF2Items_GiveNamedItem(client, hItem);
-			CloseHandle(hItem);
-			EquipPlayerWeapon(client, iWeapon);
-		}
-		
-		TF2_SwitchtoSlot(client, TFWeaponSlot_Primary);
-		
+	if(!g_isDBmap) return;
 	
+	bool replace_primary = false;
+	int client = GetClientOfUserId(GetEventInt(event, "userid"));	
+	
+	TF2_RemoveWeaponSlot(client, TFWeaponSlot_Secondary);
+	TF2_RemoveWeaponSlot(client, TFWeaponSlot_Melee);
+	TF2_RemoveWeaponSlot(client, TFWeaponSlot_Grenade);
+	TF2_RemoveWeaponSlot(client, TFWeaponSlot_Building);
+	TF2_RemoveWeaponSlot(client, TFWeaponSlot_PDA);
+	
+	char classname[64];
+	int wep_ent = GetPlayerWeaponSlot(client, TFWeaponSlot_Primary);
+	if(wep_ent > MaxClients && IsValidEntity(wep_ent))
+	{
+		int wep_index = GetEntProp(wep_ent, Prop_Send, "m_iItemDefinitionIndex"); 
+		if (wep_ent > MaxClients && IsValidEdict(wep_ent) && GetEdictClassname(wep_ent, classname, sizeof(classname)))
+		{	
+			if (StrEqual(classname, "tf_weapon_flamethrower", false) )
+			{
+				char key[4];
+				int auxIndex;
+				for(int i = 1; i <= rwSize; i++)
+				{
+					IntToString(i,key,sizeof(key));
+					if(g_RestrictedWeps.GetValue(key,auxIndex))
+						if(wepIndex == auxIndex)
+							replace_primary=true;
+				}
+				if(!replace_primary)
+					TF2Attrib_SetByDefIndex(wep_ent, 254, 4.0);
+			}
+			else
+				replace_primary = true;
+		}
 	}
+	if(replace_primary)
+	{
+		TF2_RemoveWeaponSlot(client, TFWeaponSlot_Primary);
+		Handle hItem = TF2Items_CreateItem(FORCE_GENERATION | OVERRIDE_CLASSNAME | OVERRIDE_ITEM_DEF | OVERRIDE_ITEM_LEVEL | OVERRIDE_ITEM_QUALITY | OVERRIDE_ATTRIBUTES);
+		TF2Items_SetClassname(hItem, "tf_weapon_flamethrower");
+		TF2Items_SetItemIndex(hItem, 21);
+		TF2Items_SetLevel(hItem, 69);
+		TF2Items_SetQuality(hItem, 6);
+		TF2Items_SetAttribute(hItem, 0, 254, 4.0); //Can't push other players
+		TF2Items_SetNumAttributes(hItem, 1);
+		int iWeapon = TF2Items_GiveNamedItem(client, hItem);
+		CloseHandle(hItem);
+		EquipPlayerWeapon(client, iWeapon);
+	}
+	
+	TF2_SwitchtoSlot(client, TFWeaponSlot_Primary);
+	
 }
 
 /* OnPlayerSpawn()
 **
 ** Here we set the spy cloak and we move the death player.
 ** -------------------------------------------------------------------------- */
-public Action:OnPlayerSpawn(Handle:event, const String:name[], bool:dontBroadcast)
+public Action OnPlayerSpawn(Handle event, const char name[], bool dontBroadcast)
 {
-	new TFClassType:iClass;
-	if(g_Enabled && g_isDBmap)
-	{
-		new client = GetClientOfUserId(GetEventInt(event, "userid"));
-		iClass = TF2_GetPlayerClass(client);
-		if(g_OnlyPyro)
-		{			
-			if (!(iClass == TFClass_Pyro || iClass == TFClassType:TFClass_Unknown))
-			{
-				TF2_SetPlayerClass(client, TFClass_Pyro, false, true);
-				TF2_RespawnPlayer(client);
-			}
-		}
-		else if(iClass == TFClass_Spy)
+	if(!g_isDBmap) return;
+	
+	int class = GetEntProp(client, Prop_Send, "m_iClass");
+	int client = GetClientOfUserId(GetEventInt(event, "userid"));
+	if(g_pyro_only)
+	{			
+		if(!(class == CLASS_PYRO || class == 0 ))
 		{
-			new cond = GetEntProp(client, Prop_Send, "m_nPlayerCond");
-			
-			if (cond & PLAYERCOND_SPYCLOAK)
-			{
-				SetEntProp(client, Prop_Send, "m_nPlayerCond", cond | ~PLAYERCOND_SPYCLOAK);
-			}
+			SetEntProp(client, Prop_Send, "m_iDesiredPlayerClass", CLASS_PYRO);			
+			SetEntProp(client, Prop_Send, "m_iClass", CLASS_PYRO);
+			TF2_RespawnPlayer(client);
 		}
-		if(g_onPreparation)
-			SetEntityMoveType(client, MOVETYPE_NONE);	
 	}
+	else if(class == CLASS_SPY)
+	{
+		int cond = GetEntProp(client, Prop_Send, "m_nPlayerCond");
+		
+		if (cond & PLAYERCOND_SPYCLOAK)
+			SetEntProp(client, Prop_Send, "m_nPlayerCond", cond | ~PLAYERCOND_SPYCLOAK);
+	}
+	if(g_onPreparation)
+		SetEntityMoveType(client, MOVETYPE_NONE);	
 }
 
 /* SearchSpawns()
 **
 ** Searchs for blue and red rocket spawns
 ** -------------------------------------------------------------------------- */
-public SearchSpawns()
+public void SearchSpawns()
 {
-	if(!g_Enabled || !g_isDBmap) return;
-	new iEntity = -1;
+	if(!g_isDBmap) return;
+	int iEntity = -1;
 	g_RedSpawn = -1;
 	g_BlueSpawn = -1;
 	while ((iEntity = FindEntityByClassname(iEntity, "info_target")) != -1)
 	{
-		decl String:strName[32]; 
+		char strName[32]; 
 		GetEntPropString(iEntity, Prop_Data, "m_iName", strName, sizeof(strName));
 		if ((StrContains(strName, "rocket_spawn_red") != -1) || (StrContains(strName, "tf_dodgeball_red") != -1))
 		{
@@ -597,11 +780,13 @@ public SearchSpawns()
 	if (g_RedSpawn == -1) SetFailState("No RED spawn points found on this map.");
 	if (g_BlueSpawn == -1) SetFailState("No BLU spawn points found on this map.");
 	
-	//ObserverPoint
-	new Float:opPos[3];
-	new Float:opAng[3];
 	
-	new spawner = GetRandomInt(0,1);
+	//ObserverPoint
+	/*
+	float opPos[3];
+	float opAng[3];
+	
+	int spawner = GetRandomInt(0,1);
 	if(spawner == 0)
 		spawner = g_RedSpawn;
 	else
@@ -623,8 +808,54 @@ public SearchSpawns()
 		g_observer = -1;
 	}
 	return;
+	*/
 }
 
+/* GetRandomRocketClass()
+**
+** Returns a random rocket based on config's chance
+** -------------------------------------------------------------------------- */
+public int GetRandomRocketClass()
+{
+	int classChance[MAXROCKETS], int maxNum = 0;
+	char className[MAX_NAME_LENGTH]; 
+	
+	//Here we get the probability of each rocket class
+	for(int i = 0; i < g_RocketClass_count; i++)
+	{
+		g_RocketClass.GetName(className,MAX_NAME_LENGTH);
+		if(!g_class_chance.GetValue(className,classChance[i]))
+			classChance[i] = 0;
+		else
+			maxNum+=classChance[i]
+	}
+	
+	int random = GetRandomInt(1, maxNum);
+	int upChance = 0, downChance = 0
+	for(int i = 0; i < g_RocketClass_count; i++)
+	{
+		downChance = upChance;
+		upChance = downChance + classChance[i];
+		downChance++;
+		
+		if(random >= downChance && upChance >= random)
+			return random;
+		
+	}
+	return 0;
+}
+
+/* GetRocketSlot()
+**
+** Checks if every "slot" of rockets is used
+** -------------------------------------------------------------------------- */
+public int GetRocketSlot()
+{
+	for(int i = 0; i < g_max_rockets; i++)
+		g_RocketEntity[i].entity == -1;
+			return i;
+	return -1;
+}
 
 /* SearchTarget()
 **
@@ -632,7 +863,7 @@ public SearchSpawns()
 ** -------------------------------------------------------------------------- */
 public SearchTarget()
 {
-	if(!g_Enabled || !g_isDBmap) return;
+	if(!g_isDBmap) return;
 	if(g_RocketEnt <= 0) return;
 	new rTeam = GetEntProp(g_RocketEnt, Prop_Send, "m_iTeamNum", 1);
 	
@@ -714,26 +945,58 @@ public SearchTarget()
 **
 ** Timer used to spawn a new rocket.
 ** -------------------------------------------------------------------------- */
-public Action:FireRocket(Handle:timer, any:rocketTeam)
+public Action TryFireRocket(Handle timer, int data)
 {
-	if(!g_Enabled || !g_isDBmap || !g_roundActive) return;
-	new spawner;
-	if(rocketTeam == TEAM_RED)
-		spawner = g_RedSpawn;
-	else if(rocketTeam == TEAM_BLUE)
-		spawner = g_BlueSpawn;
-	else
-		SetFailState("Tried to fire a rocket for other team than red or blue.");
+	if(g_canSpawn)
+		return;
+	FireRocket()
 
+}
+public Action AllowSpawn(Handle timer, int data)
+{
+	g_canSpawn = true;
+	FireRocket();
+}
+
+public void FireRocket()
+{
+	if(!g_isDBmap || !g_roundActive) return;
+	if(!g_canSpawn) return;
+	int rIndex = GetRocketSlot();
+	if(rIndex == -1) return;
+	
+	int spawner, rocketTeam;
+	if(g_lastSpawned == TEAM_RED)
+	{
+		rocketTeam == TEAM_BLUE;
+		spawner = g_BlueSpawn;
+	}
+	else
+	{
+		rocketTeam == TEAM_RED;
+		spawner = g_RedSpawn;
+	}
+	
 	new iEntity = CreateEntityByName( "tf_projectile_rocket");
 	if (iEntity && IsValidEntity(iEntity))
 	{
+		int class = GetRandomRocketClass();
+		g_RocketEnt[rIndex].entity = iEntity;
+		g_RocketEnt[rIndex].class = class;
+		g_RocketEnt[rIndex].bounces = 0;
+		g_RocketEnt[rIndex].aimed = false;
+		g_RocketEnt[rIndex].deflects = 0;
+		g_RocketEnt[rIndex].observer = -1;
+		g_RocketEnt[rIndex].homing = true;
+		
+		
 		// Fetch spawn point's location and angles.
-		new Float:fPosition[3], Float:fAngles[3], Float:fDirection[3], Float:fVelocity[3];
+		float fPosition[3], fAngles[3], fDirection[3], fVelocity[3];
 		GetEntPropVector(spawner, Prop_Send, "m_vecOrigin", fPosition);
 		GetEntPropVector(spawner, Prop_Send, "m_angRotation", fAngles);
 		GetAngleVectors(fAngles, fDirection, NULL_VECTOR, NULL_VECTOR);
-		CopyVectors(fDirection, g_RocketDirection);
+		g_RocketEnt[rIndex].SetDirection(fDirection);
+		//CopyVectors(fDirection, g_RocketDirection);
 		
 		// Setup rocket entity.
 		SetEntPropEnt(iEntity, Prop_Send, "m_hOwnerEntity", 0);
@@ -741,33 +1004,37 @@ public Action:FireRocket(Handle:timer, any:rocketTeam)
 		SetEntProp(iEntity,	Prop_Send, "m_iTeamNum",	 rocketTeam, 1); 
 		SetEntProp(iEntity,	Prop_Send, "m_iDeflected",   1);
 		
-		new Float:aux_mul= BASE_SPEED*g_SpeedMul;
+		float aux_mul = g_RocketClass[class].speed;
 		fVelocity[0] = fDirection[0]*aux_mul;
 		fVelocity[1] = fDirection[1]*aux_mul;
 		fVelocity[2] = fDirection[2]*aux_mul;
 		TeleportEntity(iEntity, fPosition, fAngles, fVelocity);
 		
-		SetEntDataFloat(iEntity, FindSendPropOffs("CTFProjectile_Rocket", "m_iDeflected") + 4, g_BaseDamage, true);
+		SetEntDataFloat(iEntity, FindSendPropOffs("CTFProjectile_Rocket", "m_iDeflected") + 4, g_RocketClass[class].damage, true);
 		DispatchSpawn(iEntity);
 		
-		g_RocketEnt = iEntity;
 		SDKHook(iEntity, SDKHook_StartTouch, OnStartTouch);
-		g_RocketBounces = 0;
-		SearchTarget();
+		
+		g_RocketEnt[rIndex].target = SearchTarget();
+		/*
 		EmitSoundToAll(SOUND_SPAWN, iEntity);
 		if( g_RocketTarget > 0 && g_RocketTarget <= MaxClients)
 			EmitSoundToClient(g_RocketTarget, SOUND_ALERT, _, _, _, _, SOUND_ALERT_VOL);
-			
-		ShowHud(10.0,aux_mul,g_DeflectCount,0,g_RocketTarget);
+			*/
+		//ShowHud(10.0,aux_mul,g_DeflectCount,0,g_RocketTarget);
 		
 		//Observer point
-		if(IsValidEntity(g_observer))
+		/*if(IsValidEntity(g_observer))
 		{
 			TeleportEntity(g_observer, fPosition, fAngles, Float:{0.0, 0.0, 0.0});
 			SetVariantString("!activator");
 			AcceptEntityInput(g_observer, "SetParent", g_RocketEnt);
-		}
-
+		}*/
+		
+		g_lastSpawned = rocketTeam;
+		g_canSpawn = false;
+		CreateTimer(g_spawn_delay,AllowSpawn);
+		
 	}
 }
 
@@ -841,94 +1108,92 @@ public bool:TEF_ExcludeEntity(entity, contentsMask, any:data)
 public OnGameFrame()
 {
 	
-	if(g_Enabled && g_isDBmap)
+	if(!g_isDBmap) return;
+	for(new i = 1; i <= MaxClients; i++)
 	{
-		for(new i = 1; i <= MaxClients; i++)
+		if(IsClientInGame(i) && IsPlayerAlive(i))
 		{
-			if(IsClientInGame(i) && IsPlayerAlive(i))
+			SetEntPropFloat(i, Prop_Send, "m_flMaxspeed", PLAYER_SPEED);
+			if(TF2_GetPlayerClass(i) == TFClass_Spy)
 			{
-				SetEntPropFloat(i, Prop_Send, "m_flMaxspeed", PLAYER_SPEED);
-				if(TF2_GetPlayerClass(i) == TFClass_Spy)
-				{
-					SetCloak(i, 1.0);
-				}
+				SetCloak(i, 1.0);
 			}
 		}
-		//Rocket Management
-		if(g_RocketEnt > 0 && g_roundActive) 
+	}
+	//Rocket Management
+	if(g_RocketEnt > 0 && g_roundActive) 
+	{
+		new rOwner = GetEntPropEnt(g_RocketEnt, Prop_Send, "m_hOwnerEntity");
+		
+		//Check if the target is available
+		if(g_RocketTarget < 0 || g_RocketTarget > MaxClients || !IsClientConnected(g_RocketTarget) ||	!IsClientInGame(g_RocketTarget) || !IsPlayerAlive(g_RocketTarget))
 		{
-			new rOwner = GetEntPropEnt(g_RocketEnt, Prop_Send, "m_hOwnerEntity");
+			SearchTarget();
+		}
+		
+		//Check deflects
+		new rDef  = GetEntProp(g_RocketEnt, Prop_Send, "m_iDeflected") - 1;
+		new Float:aux_mul = 0.0;
+		if(rDef > g_DeflectCount)
+		{
+			new Float:fViewAngles[3], Float:fDirection[3];
+			GetClientEyeAngles(g_RocketTarget, fViewAngles);
+			GetAngleVectors(fViewAngles, fDirection, NULL_VECTOR, NULL_VECTOR);
+			CopyVectors(fDirection, g_RocketDirection);
 			
-			//Check if the target is available
-			if(g_RocketTarget < 0 || g_RocketTarget > MaxClients || !IsClientConnected(g_RocketTarget) ||	!IsClientInGame(g_RocketTarget) || !IsPlayerAlive(g_RocketTarget))
+			SearchTarget();
+			g_DeflectCount++;
+			if( g_RocketTarget > 0 && g_RocketTarget <= MaxClients)
 			{
-				SearchTarget();
-			}
-			
-			//Check deflects
-			new rDef  = GetEntProp(g_RocketEnt, Prop_Send, "m_iDeflected") - 1;
-			new Float:aux_mul = 0.0;
-			if(rDef > g_DeflectCount)
-			{
-				new Float:fViewAngles[3], Float:fDirection[3];
-				GetClientEyeAngles(g_RocketTarget, fViewAngles);
-				GetAngleVectors(fViewAngles, fDirection, NULL_VECTOR, NULL_VECTOR);
-				CopyVectors(fDirection, g_RocketDirection);
-				
-				SearchTarget();
-				g_DeflectCount++;
-				if( g_RocketTarget > 0 && g_RocketTarget <= MaxClients)
+				EmitSoundToClient(g_RocketTarget, SOUND_ALERT, _, _, _, _, SOUND_ALERT_VOL);	
+				if(g_RocketAimed)
 				{
-					EmitSoundToClient(g_RocketTarget, SOUND_ALERT, _, _, _, _, SOUND_ALERT_VOL);	
-					if(g_RocketAimed)
-					{
-						EmitSoundToClient(g_RocketTarget, SOUND_SPAWN, _, _, _, _, SOUND_ALERT_VOL);	
-						if (rOwner > 0 && rOwner <= MaxClients)
-							EmitSoundToClient(rOwner, SOUND_SPAWN, _, _, _, _, SOUND_ALERT_VOL);	
-							
-						SetHudTextParams(-1.0, -1.0, 1.5, ALERT_R, ALERT_G, ALERT_B, 255, 2, 0.28 , 0.1, 0.1);
-						ShowSyncHudText(rOwner, g_HudSyncs[hud_SuperShot], "Super Shot!");
-					}
-				}
-				if(g_ShowInfo)
-				{
-					aux_mul = BASE_SPEED * g_SpeedMul * (1 + g_DeflectInc * rDef);
-					ShowHud(10.0,aux_mul,g_DeflectCount,rOwner,g_RocketTarget);
-				}
-				g_MovEnabled = false;
-				CreateTimer(g_Delay,EnableMov);
-			}
-			//If isn't a deflect then we have to modify the rocket's direction and velocity
-			else
-			{
-				if(g_MovEnabled)
-				{
-					if(g_RocketTarget > 0 && g_RocketTarget <= MaxClients)
-					{
-						decl Float:fDirectionToTarget[3]; 
-						CalculateDirectionToClient(g_RocketEnt, g_RocketTarget, fDirectionToTarget);
-						LerpVectors(g_RocketDirection, fDirectionToTarget, g_RocketDirection, g_Turnrate);
-					}
+					EmitSoundToClient(g_RocketTarget, SOUND_SPAWN, _, _, _, _, SOUND_ALERT_VOL);	
+					if (rOwner > 0 && rOwner <= MaxClients)
+						EmitSoundToClient(rOwner, SOUND_SPAWN, _, _, _, _, SOUND_ALERT_VOL);	
+						
+					SetHudTextParams(-1.0, -1.0, 1.5, ALERT_R, ALERT_G, ALERT_B, 255, 2, 0.28 , 0.1, 0.1);
+					ShowSyncHudText(rOwner, g_HudSyncs[hud_SuperShot], "Super Shot!");
 				}
 			}
-			
+			if(g_ShowInfo)
+			{
+				aux_mul = BASE_SPEED * g_SpeedMul * (1 + g_DeflectInc * rDef);
+				ShowHud(10.0,aux_mul,g_DeflectCount,rOwner,g_RocketTarget);
+			}
+			g_MovEnabled = false;
+			CreateTimer(g_Delay,EnableMov);
+		}
+		//If isn't a deflect then we have to modify the rocket's direction and velocity
+		else
+		{
 			if(g_MovEnabled)
 			{
-				decl Float:fAngles[3]; GetVectorAngles(g_RocketDirection, fAngles);
-				decl Float:fVelocity[3]; CopyVectors(g_RocketDirection, fVelocity);
-				
-				if(aux_mul == 0.0)
-					aux_mul = BASE_SPEED * g_SpeedMul * (1 + g_DeflectInc * rDef);
-				if(g_AllowAim && g_RocketAimed)
-					aux_mul *= g_AimedSpeedMul;
-				fVelocity[0] = g_RocketDirection[0]*aux_mul;
-				fVelocity[1] = g_RocketDirection[1]*aux_mul;
-				fVelocity[2] = g_RocketDirection[2]*aux_mul;
-				SetEntPropVector(g_RocketEnt, Prop_Data, "m_vecAbsVelocity", fVelocity);
-				SetEntPropVector(g_RocketEnt, Prop_Send, "m_angRotation", fAngles);
+				if(g_RocketTarget > 0 && g_RocketTarget <= MaxClients)
+				{
+					decl Float:fDirectionToTarget[3]; 
+					CalculateDirectionToClient(g_RocketEnt, g_RocketTarget, fDirectionToTarget);
+					LerpVectors(g_RocketDirection, fDirectionToTarget, g_RocketDirection, g_Turnrate);
+				}
 			}
-			
 		}
+		
+		if(g_MovEnabled)
+		{
+			decl Float:fAngles[3]; GetVectorAngles(g_RocketDirection, fAngles);
+			decl Float:fVelocity[3]; CopyVectors(g_RocketDirection, fVelocity);
+			
+			if(aux_mul == 0.0)
+				aux_mul = BASE_SPEED * g_SpeedMul * (1 + g_DeflectInc * rDef);
+			if(g_AllowAim && g_RocketAimed)
+				aux_mul *= g_AimedSpeedMul;
+			fVelocity[0] = g_RocketDirection[0]*aux_mul;
+			fVelocity[1] = g_RocketDirection[1]*aux_mul;
+			fVelocity[2] = g_RocketDirection[2]*aux_mul;
+			SetEntPropVector(g_RocketEnt, Prop_Data, "m_vecAbsVelocity", fVelocity);
+			SetEntPropVector(g_RocketEnt, Prop_Send, "m_angRotation", fAngles);
+		}
+		
 	}
 }
 
@@ -947,31 +1212,23 @@ public Action:EnableMov(Handle:timer, any:data)
 ** -------------------------------------------------------------------------- */
 public OnEntityDestroyed(entity)
 {
-	if(!g_Enabled || !g_isDBmap) return;
-	if(entity == -1)
-	{
-		return;
-	}
+	if(!g_isDBmap) return;
+	if(entity == -1) return;
 
 	if(entity == g_RocketEnt && IsValidEntity(g_RocketEnt))
 	{
-		
-		new rTeam = GetEntProp(entity, Prop_Send, "m_iTeamNum");
 		g_RocketEnt = -1;
 		g_RocketTarget= -1;
 		g_RocketAimed = false;
 		g_DeflectCount = 0;
 		if(g_roundActive)
 		{
-			if(rTeam == TEAM_RED)
-				CreateTimer(g_SpawnTime, FireRocket,  TEAM_BLUE);
-			else if(rTeam == TEAM_BLUE)
-				CreateTimer(g_SpawnTime, FireRocket,  TEAM_RED);
-			if(g_ShowInfo)
-				ShowHud(g_SpawnTime,_,_,_,_);
+			CreateTimer(g_spawn_delay, TryFireRocket);
+			/*if(g_ShowInfo)
+				ShowHud(g_SpawnTime,_,_,_,_);*/
 
 		}
-		
+		/*
 		if( IsValidEntity(g_observer))
 		{
 			SetVariantString("");
@@ -992,11 +1249,11 @@ public OnEntityDestroyed(entity)
 				GetEntPropVector(spawner,Prop_Data, "m_angAbsRotation", opAng);
 				TeleportEntity(g_observer, opPos, opAng, NULL_VECTOR);
 			}		
-		}
+		}*/
 	}
 	
 }
-
+/*
 stock ShowHud( Float:h_duration=0.1, Float:h_speed=0.0, h_reflects=-1, h_owner=-1, h_target=0)
 {
 
@@ -1035,14 +1292,17 @@ stock ShowHud( Float:h_duration=0.1, Float:h_speed=0.0, h_reflects=-1, h_owner=-
 			ShowSyncHudText(i, g_HudSyncs[hud_Target], "Target: -");
 	}
 }
+*/
+
+
 
 /* OnConfigsExecuted()
 **
 ** Here we get the default values of the CVars that the plugin is going to modify.
 ** -------------------------------------------------------------------------- */
-public OnConfigsExecuted()
+public void OnConfigsExecuted()
 {
-	if(!g_Enabled || !g_isDBmap) return;
+	if(!g_isDBmap) return;
 	db_airdash_def = GetConVarInt(db_airdash);
 	db_push_def = GetConVarInt(db_push);
 	db_burstammo_def = GetConVarInt(db_burstammo);
@@ -1053,7 +1313,7 @@ public OnConfigsExecuted()
 **
 ** Modify several values of the CVars that the plugin needs to work properly.
 ** -------------------------------------------------------------------------- */
-public SetupCvars()
+public void SetupCvars()
 {
 	SetConVarInt(db_airdash, 0);
 	SetConVarInt(db_push, 0);
@@ -1064,7 +1324,7 @@ public SetupCvars()
 **
 ** Reset the values of the CVars that the plugin used to their default values.
 ** -------------------------------------------------------------------------- */
-public ResetCvars()
+public void ResetCvars()
 {
 	SetConVarInt(db_airdash, db_airdash_def);
 	SetConVarInt(db_push, db_push_def);
@@ -1075,9 +1335,9 @@ public ResetCvars()
 **
 ** Block flamethrower's Mouse1 attack.
 ** -------------------------------------------------------------------------- */
-public Action:OnPlayerRunCmd(iClient, &iButtons, &iImpulse, Float:fVelocity[3], Float:fAngles[3], &iWeapon)
+public Action OnPlayerRunCmd(iClient, &iButtons, &iImpulse, Float:fVelocity[3], Float:fAngles[3], &iWeapon)
 {
-	if(!g_Enabled || !g_isDBmap) return Plugin_Continue;
+	if(!g_isDBmap) return Plugin_Continue;
 	iButtons &= ~IN_ATTACK;
 	return Plugin_Continue;
 }
@@ -1086,9 +1346,9 @@ public Action:OnPlayerRunCmd(iClient, &iButtons, &iImpulse, Float:fVelocity[3], 
 **
 ** Blocks a command
 ** -------------------------------------------------------------------------- */
-public Action:Command_Block(client, const String:command[], argc)
+public Action Command_Block(client, const String:command[], argc)
 {
-	if(g_isDBmap && g_Enabled)
+	if(g_isDBmap)
 		return Plugin_Stop;
 	return Plugin_Continue;
 }
@@ -1097,12 +1357,12 @@ public Action:Command_Block(client, const String:command[], argc)
 **
 ** Changes the client's slot to the desired one.
 ** -------------------------------------------------------------------------- */
-stock TF2_SwitchtoSlot(client, slot)
+stock void TF2_SwitchtoSlot(int client, int slot)
 {
 	if (slot >= 0 && slot <= 5 && IsClientInGame(client) && IsPlayerAlive(client))
 	{
-		decl String:classname[64];
-		new wep = GetPlayerWeaponSlot(client, slot);
+		char classname[64];
+		int wep = GetPlayerWeaponSlot(client, slot);
 		if (wep > MaxClients && IsValidEdict(wep) && GetEdictClassname(wep, classname, sizeof(classname)))
 		{
 			FakeClientCommandEx(client, "use %s", classname);
@@ -1115,7 +1375,7 @@ stock TF2_SwitchtoSlot(client, slot)
 **
 ** Function used to set the spy's cloak meter.
 ** -------------------------------------------------------------------------- */
-stock SetCloak(client, Float:value)
+stock void SetCloak(int client, float value)
 {
 	SetEntPropFloat(client, Prop_Send, "m_flCloakMeter", value);
 }
@@ -1124,7 +1384,7 @@ stock SetCloak(client, Float:value)
 **
 ** Copies the contents from a vector to another.
 ** -------------------------------------------------------------------------- */
-stock CopyVectors(Float:fFrom[3], Float:fTo[3])
+stock void CopyVectors(float fFrom[3], float fTo[3])
 {
 	fTo[0] = fFrom[0];
 	fTo[1] = fFrom[1];
@@ -1136,7 +1396,7 @@ stock CopyVectors(Float:fFrom[3], Float:fTo[3])
 ** Calculates the linear interpolation of the two given vectors and stores
 ** it on the third one.
 ** -------------------------------------------------------------------------- */
-stock LerpVectors(Float:fA[3], Float:fB[3], Float:fC[3], Float:t)
+stock void LerpVectors(float fA[3], float fB[3], float fC[3], float t)
 {
 	if (t < 0.0) t = 0.0;
 	if (t > 1.0) t = 1.0;
@@ -1151,11 +1411,12 @@ stock LerpVectors(Float:fA[3], Float:fB[3], Float:fC[3], Float:t)
 ** As the name indicates, calculates the orientation for the rocket to move
 ** towards the specified client.
 ** -------------------------------------------------------------------------- */
-CalculateDirectionToClient(iEntity, iClient, Float:fOut[3])
+stock void CalculateDirectionToClient(int iEntity, int iClient, float fOut[3])
 {
 	if(iClient < 0 || iClient > MaxClients)
 		return;
-	decl Float:fRocketPosition[3]; GetEntPropVector(iEntity, Prop_Send, "m_vecOrigin", fRocketPosition);
+	float fRocketPosition[3]; 
+	GetEntPropVector(iEntity, Prop_Send, "m_vecOrigin", fRocketPosition);
 	GetClientEyePosition(iClient, fOut);
 	MakeVectorFromPoints(fRocketPosition, fOut, fOut);
 	NormalizeVector(fOut, fOut);
