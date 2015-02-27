@@ -27,7 +27,7 @@
 #define CLASS_SPY 8
 
 #define SOUND_ALERT_VOL	0.8
-#define HUD_LINE_SEPARATION 0.03
+#define HUD_LINE_SEPARATION 0.04
 
 // ---- Variables --------------------------------------------------------------
 bool g_isDBmap = false;
@@ -179,6 +179,11 @@ public void OnMapStart()
 		
 		PrecacheFiles();
 		ProcessListeners(false);
+		
+		if(g_hud_show)
+		{
+			CreateTimer(0.1,TimerHud,_,TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
+		}
 	}
  	else
 	{
@@ -195,6 +200,16 @@ public void OnMapStart()
 ** -------------------------------------------------------------------------- */
 public void OnMapEnd()
 {
+	g_roundActive = false;
+	for(int i = 0; i < MAXROCKETS; i++)
+	{
+		if( IsValidEntity(g_RocketEnt[i].entity))
+		{
+			AcceptEntityInput(g_RocketEnt[i].entity, "Kill");
+			g_RocketEnt[i].entity = -1;
+			return;
+		}
+	}
 	ResetCvars();
 }
 
@@ -470,8 +485,11 @@ void LoadConfigs()
 	
 		kv.GoBack();
 	}
+	
+	kv.Rewind();
 	if(kv.JumpToKey("sounds"))
 	{
+		//LogMessage("Parsin' sounds.");
 		char key[4], sndFile[PLATFORM_MAX_PATH];
 		if(kv.JumpToKey("RoundStart"))
 		{
@@ -482,6 +500,7 @@ void LoadConfigs()
 				if(StrEqual(sndFile, ""))
 					break;			
 				g_SndRoundStart.SetString(key,sndFile);
+				//LogMessage("Parsin' sounds on start (%s)",key);
 			}
 			kv.GoBack();
 		}
@@ -977,7 +996,7 @@ public Action:OnPlayerDeath(Handle:event, const String:name[], bool:dontBroadcas
 	int client = GetClientOfUserId(GetEventInt(event, "userid"));
 	EmitRandomSound(g_SndOnDeath,client);
 	int killer = GetClientOfUserId(GetEventInt(event, "attacker"));
-	if(g_canEmitKillSound)
+	if(g_canEmitKillSound && client != killer && killer > 0)
 	{
 		EmitRandomSound(g_SndOnKill,killer);
 		g_canEmitKillSound = false;
@@ -1118,6 +1137,7 @@ public int SearchTarget(int rIndex)
 {
 	if(!g_isDBmap) return -1;
 	if(g_RocketEnt[rIndex].entity <= 0) return -1;
+	if(!g_roundActive) return -1;
 	int rTeam = GetEntProp(g_RocketEnt[rIndex].entity, Prop_Send, "m_iTeamNum", 1);
 	int class = g_RocketEnt[rIndex].class;
 	//Check by aim
@@ -1216,13 +1236,15 @@ public Action TryFireRocket(Handle timer, int data)
 public Action AllowSpawn(Handle timer, int data)
 {
 	g_canSpawn = true;
-	FireRocket();
+	if(g_roundActive)
+		FireRocket();
 }
 
 public void FireRocket()
 {
 	if(!g_isDBmap || !g_roundActive) return;
 	if(!g_canSpawn) return;
+	if(!g_roundActive) return;
 	int rIndex = GetRocketSlot();
 	//LogMessage("Going to spawn the rocket slot %d).",rIndex);
 	if(rIndex == -1) return;
@@ -1263,11 +1285,12 @@ public void FireRocket()
 		
 		// Setup rocket entity.
 		SetEntPropEnt(iEntity, Prop_Send, "m_hOwnerEntity", 0);
-		SetEntProp(iEntity,	Prop_Send, "m_bCritical",	 1);
+		//SetEntProp(iEntity,	Prop_Send, "m_bCritical",	 1);
 		SetEntProp(iEntity,	Prop_Send, "m_iTeamNum",	 rocketTeam, 1); 
 		SetEntProp(iEntity,	Prop_Send, "m_iDeflected",   1);
 		
 		float aux_mul = g_RocketClass[class].speed;
+		g_RocketEnt[rIndex].speed = aux_mul;
 		fVelocity[0] = fDirection[0]*aux_mul;
 		fVelocity[1] = fDirection[1]*aux_mul;
 		fVelocity[2] = fDirection[2]*aux_mul;
@@ -1283,11 +1306,35 @@ public void FireRocket()
 		
 		if(g_RocketClass[class].size > 0.0)
 			SetEntPropFloat(iEntity, Prop_Send, "m_flModelScale", g_RocketClass[class].size);
+			
+		if(useMultiColor())
+		{
+			if(!StrEqual(g_mrc_trail[rIndex],""))
+				AttachTrail(rIndex);
+			if(g_mrc_applycolor_model[rIndex])
+				DispatchKeyValue(iEntity, "rendercolor", g_mrc_color[rIndex]);
+			AttachLight(rIndex);
+		}
+		else 
+		{
+			g_RocketClass[class].GetTrail(auxPath,PLATFORM_MAX_PATH);
+			if(!StrEqual(auxPath,""))
+				AttachTrail(rIndex);
+		}
 
 		
 		SDKHook(iEntity, SDKHook_StartTouch, OnStartTouch);
 		
+		g_RocketEnt[rIndex].owner = 0;
 		g_RocketEnt[rIndex].target = SearchTarget(rIndex);
+		
+		if( !IsValidAliveClient(g_RocketEnt[rIndex].target ))
+		{
+			AcceptEntityInput(g_RocketEnt[rIndex].entity, "Kill");
+			g_RocketEnt[rIndex].entity = -1;
+			return;
+		}
+			
 		g_ClientAimed[g_RocketEnt[rIndex].target]++;
 		
 		if(g_RocketClass[class].snd_spawn_use)
@@ -1324,6 +1371,100 @@ public void FireRocket()
 		//LogMessage("Fired a rocket, class= %d",class);
 		
 	}
+}
+
+public void AttachTrail(int rIndex)
+{
+	int entity = g_RocketEnt[rIndex].entity;
+	if (!IsValidEntity(entity)) 
+		return;
+		
+	int trail = CreateEntityByName("env_spritetrail");
+	
+	int colornum = -1;
+	if(useMultiColor())
+		colornum = rIndex;
+	if (!IsValidEntity(trail)) 
+		return;
+
+	new String:strTargetName[MAX_NAME_LENGTH];
+	Format(strTargetName,sizeof(strTargetName),"projectile%d",entity);
+	DispatchKeyValue(entity, "targetname", strTargetName);
+	DispatchKeyValue(trail, "parentname", strTargetName);
+	DispatchKeyValueFloat(trail, "lifetime", 1.0);
+	DispatchKeyValueFloat(trail, "endwidth", 15.0);
+	DispatchKeyValueFloat(trail, "startwidth", 6.0);
+	
+	decl String:trailMaterial[PLATFORM_MAX_PATH];
+	if(colornum >= 0 && colornum < MAXMULTICOLORHUD)
+		Format(trailMaterial,PLATFORM_MAX_PATH,"%s.vmt",g_mrc_trail[colornum]);
+	else
+	{
+		g_RocketClass[g_RocketEnt[rIndex].class].GetTrail(trailMaterial,PLATFORM_MAX_PATH);
+		Format(trailMaterial,PLATFORM_MAX_PATH,"%s.vmt",trailMaterial);
+	}
+	
+	DispatchKeyValue(trail, "spritename", trailMaterial);
+	DispatchKeyValue(trail, "renderamt", "255");
+
+	if(colornum >= 0 && colornum < MAXMULTICOLORHUD && g_mrc_applycolor_trail[colornum])
+		DispatchKeyValue(trail, "rendercolor", g_mrc_color[colornum]);
+	else
+		DispatchKeyValue(trail, "rendercolor", "255 255 255 255");
+	DispatchKeyValue(trail, "rendermode", "3");
+
+	DispatchSpawn(trail);
+
+	new Float:vec[3];
+	GetEntPropVector(entity, Prop_Data, "m_vecOrigin", vec);
+
+	TeleportEntity(trail, vec, NULL_VECTOR, NULL_VECTOR);
+
+	SetVariantString(strTargetName);
+	AcceptEntityInput(trail, "SetParent"); 
+	SetEntPropFloat(trail, Prop_Send, "m_flTextureRes", 0.05);
+	return;
+}
+
+public void AttachLight(int rIndex)
+{
+	int entity = g_RocketEnt[rIndex].entity;
+	if (!IsValidEntity(entity)) 
+		return;
+	
+	int colornum = -1;
+	if(!useMultiColor())
+		return;
+	colornum = rIndex;
+	new iLightEntity = CreateEntityByName("light_dynamic");
+	if (IsValidEntity(iLightEntity))
+	{
+		DispatchKeyValue(iLightEntity, "inner_cone", "0");
+		DispatchKeyValue(iLightEntity, "cone", "80");
+		DispatchKeyValue(iLightEntity, "brightness", "5");
+		DispatchKeyValueFloat(iLightEntity, "spotlight_radius", 100.0);
+		DispatchKeyValueFloat(iLightEntity, "distance", 150.0);
+		DispatchKeyValue(iLightEntity, "_light", g_mrc_color[colornum]);
+		DispatchKeyValue(iLightEntity, "pitch", "-90");
+		DispatchKeyValue(iLightEntity, "style", "5");
+		DispatchSpawn(iLightEntity);
+		
+		decl Float:fOrigin[3];
+		GetEntPropVector(entity, Prop_Data, "m_vecOrigin", fOrigin);
+        
+		fOrigin[2] += 40.0;
+		TeleportEntity(iLightEntity, fOrigin, NULL_VECTOR, NULL_VECTOR);
+
+		decl String:strName[32];
+		Format(strName, sizeof(strName), "target%i", entity);
+		DispatchKeyValue(entity, "targetname", strName);
+				
+		DispatchKeyValue(iLightEntity, "parentname", strName);
+		SetVariantString("!activator");
+		AcceptEntityInput(iLightEntity, "SetParent", entity, iLightEntity, 0);
+		AcceptEntityInput(iLightEntity, "TurnOn");
+	}	
+	
 }
 
 /* RocketBeep()
@@ -1551,6 +1692,7 @@ public void OnGameFrame()
 				float size = g_RocketClass[class].size + g_RocketClass[class].sizeinc * g_RocketEnt[i].deflects;
 				SetEntPropFloat(g_RocketEnt[i].entity, Prop_Send, "m_flModelScale", size);
 			}
+			g_RocketEnt[i].speed = aux_mul;
 			fVelocity[0] = rocketDirection[0]*aux_mul;
 			fVelocity[1] = rocketDirection[1]*aux_mul;
 			fVelocity[2] = rocketDirection[2]*aux_mul;
@@ -1587,7 +1729,8 @@ public OnEntityDestroyed(entity)
 	g_RocketEnt[rIndex].owner = -1;
 	g_RocketEnt[rIndex].class = -1;
 	g_RocketEnt[rIndex].bounces = 0;
-	g_RocketEnt[rIndex].deflects = 0;
+	g_RocketEnt[rIndex].deflects = -1;
+	g_RocketEnt[rIndex].speed = -1.0;
 	g_RocketEnt[rIndex].aimed = false;
 	g_RocketEnt[rIndex].homing = false;
 	CloseHandle (g_RocketEnt[rIndex].beeptimer);
@@ -1663,6 +1806,118 @@ stock ShowHud( Float:h_duration=0.1, Float:h_speed=0.0, h_reflects=-1, h_owner=-
 	}
 }
 */
+
+/* TimerHud()
+**
+** Timer to manage the hud
+** -------------------------------------------------------------------------- */
+public Action TimerHud(Handle timer, int data)
+{
+	//Multi Color hud
+	if(useMultiColor())
+	{
+		for( int c = 0; c < g_max_rockets; c++)
+		{
+			char scolor[3][8];
+			int ncolor[3];
+			ExplodeString(g_mrc_color[c]," ",scolor,3,8);
+			for(int i = 0; i < 3; i++)
+				ncolor[i] = StringToInt(scolor[i]);
+					
+			SetHudTextParams(g_hud_x,g_hud_y+c*HUD_LINE_SEPARATION*2,0.2,ncolor[0],ncolor[1],ncolor[2],255, 0, 0.0, 0.0, 0.0);
+			char info[4][64]; // owner, target, speed, deflects
+			for(int i = 0; i < 4; i++)
+				info[i] = "-";
+			if( g_RocketEnt[c].entity > MaxClients)
+			{
+				if( g_RocketEnt[c].owner >= 0 && g_RocketEnt[c].owner <= MaxClients && IsClientInGame(g_RocketEnt[c].owner))
+				{
+					if( g_RocketEnt[c].owner == 0)
+						Format(info[0],64,"The server");
+					else
+						Format(info[0],64,"%N",g_RocketEnt[c].owner);
+				}
+				if( g_RocketEnt[c].target > 0 && g_RocketEnt[c].target <= MaxClients && IsClientInGame(g_RocketEnt[c].target))
+					Format(info[1],64,"%N",g_RocketEnt[c].target);
+				if( g_RocketEnt[c].speed >= 0)
+					Format(info[2],64,"%.1f",g_RocketEnt[c].speed);
+				if( g_RocketEnt[c].deflects >= 0)
+					Format(info[3],64,"%d",g_RocketEnt[c].deflects);
+			}
+			for(int client = 1; client <= MaxClients; client++)
+			if(IsClientInGame(client))
+				ShowSyncHudText(client, g_HudSyncs[c], "<- %s | D: %s \n-> %s | S: %s",info[0],info[3],info[1],info[2]);
+		}
+	
+	}
+	//Just one rocket
+	
+	else if (g_max_rockets == 1)
+	{
+		char scolor[3][8];
+		int ncolor[3];
+		ExplodeString(g_hud_color," ",scolor,3,8);
+		for(int i = 0; i < 3; i++)
+			ncolor[i] = StringToInt(scolor[i]);
+				
+		SetHudTextParams(g_hud_x,g_hud_y,0.2,ncolor[0],ncolor[1],ncolor[2],255, 0, 0.0, 0.0, 0.0);
+		char info[4][64]; // owner, target, speed, deflects
+		for(int i = 0; i < 4; i++)
+			info[i] = "-";
+		if( g_RocketEnt[0].entity > MaxClients)
+		{
+			if( g_RocketEnt[0].owner >= 0 && g_RocketEnt[0].owner <= MaxClients && IsClientInGame(g_RocketEnt[0].owner))
+			{
+				if( g_RocketEnt[0].owner == 0)
+					Format(info[0],64,"The server");
+				else
+					Format(info[0],64,"%N",g_RocketEnt[0].owner);
+			}
+			if( g_RocketEnt[0].target > 0 && g_RocketEnt[0].target <= MaxClients && IsClientInGame(g_RocketEnt[0].target))
+				Format(info[1],64,"%N",g_RocketEnt[0].target);
+			if( g_RocketEnt[0].speed >= 0)
+				Format(info[2],64,"%.1f",g_RocketEnt[0].speed);
+			if( g_RocketEnt[0].deflects >= 0)
+				Format(info[3],64,"%d",g_RocketEnt[0].deflects);
+		
+		}
+		
+		for(int client = 1; client <= MaxClients; client++)
+			if(IsClientInGame(client))
+				ShowSyncHudText(client, g_HudSyncs[0], " Owner: %s \n Deflects: %s \n Target: %s \n Speed: %s",info[0],info[3],info[1],info[2]);
+		
+		/*
+		for(int client = 1; client <= MaxClients; client++)
+			if(IsClientInGame(client))
+				ShowSyncHudText(client, g_HudSyncs[0], "<- %s | D: %s \n-> %s | S: %s",info[0],info[3],info[1],info[2]);
+		SetHudTextParams(g_hud_x,g_hud_y+HUD_LINE_SEPARATION*2,0.2,ncolor[0],ncolor[1],ncolor[2],255, 0, 0.0, 0.0, 0.0);
+		for(int client = 1; client <= MaxClients; client++)
+			if(IsClientInGame(client))
+				ShowSyncHudText(client, g_HudSyncs[1], "<- %s | D: %s \n-> %s | S: %s",info[0],info[3],info[1],info[2]);
+		SetHudTextParams(g_hud_x,g_hud_y+HUD_LINE_SEPARATION*4,0.2,ncolor[0],ncolor[1],ncolor[2],255, 0, 0.0, 0.0, 0.0);
+		for(int client = 1; client <= MaxClients; client++)
+			if(IsClientInGame(client))
+				ShowSyncHudText(client, g_HudSyncs[2], "<- %s | D: %s \n-> %s | S: %s",info[0],info[3],info[1],info[2]);
+		SetHudTextParams(g_hud_x,g_hud_y+HUD_LINE_SEPARATION*6,0.2,ncolor[0],ncolor[1],ncolor[2],255, 0, 0.0, 0.0, 0.0);
+		for(int client = 1; client <= MaxClients; client++)
+			if(IsClientInGame(client))
+				ShowSyncHudText(client, g_HudSyncs[3], "<- %s | D: %s \n-> %s | S: %s",info[0],info[3],info[1],info[2]);
+		SetHudTextParams(g_hud_x,g_hud_y+HUD_LINE_SEPARATION*8,0.2,ncolor[0],ncolor[1],ncolor[2],255, 0, 0.0, 0.0, 0.0);
+		for(int client = 1; client <= MaxClients; client++)
+			if(IsClientInGame(client))
+				ShowSyncHudText(client, g_HudSyncs[4], "<- %s | D: %s \n-> %s | S: %s",info[0],info[3],info[1],info[2]);
+		*/
+	}
+	
+
+}
+
+bool useMultiColor()
+{
+	if(g_max_rockets > 1 && g_max_rockets <= MAXMULTICOLORHUD && g_allow_multirocketcolor)
+		return true;
+	return false;
+}
 
 
 
@@ -1810,10 +2065,10 @@ stock EmitSoundDB(int client, char sndFile[PLATFORM_MAX_PATH])
 **
 ** Emits a random sound from a trie, it will be emitted for everyone is a client isn't passed.
 ** -------------------------------------------------------------------------- */
-stock EmitRandomSound(Handle:sndTrie,client = -1)
+stock EmitRandomSound(StringMap sndTrie,client = -1)
 {
-	new trieSize = GetTrieSize(sndTrie);
-	
+	int trieSize = sndTrie.Size;
+	//LogMessage("Emitting sound from trie with %d sounds.",trieSize);
 	new String:key[4], String:sndFile[PLATFORM_MAX_PATH];
 	IntToString(GetRandomInt(1,trieSize),key,sizeof(key));
 
@@ -1825,12 +2080,16 @@ stock EmitRandomSound(Handle:sndTrie,client = -1)
 		if(client != -1)
 		{
 			if(client > 0 && client <= MaxClients && IsClientInGame(client) && !IsFakeClient(client))
+			{
 				EmitSoundToClient(client,sndFile,_,_, SNDLEVEL_TRAIN);
+			}
 			else
 				return;
 		}
-		else	
+		else
+		{
 			EmitSoundToAll(sndFile, _, _, SNDLEVEL_TRAIN);
+		}
 	}
 }
 
