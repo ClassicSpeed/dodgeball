@@ -139,10 +139,11 @@ bool g_class_sound_aimed_play[ROCKETCLASSNUM];
 char g_class_sound_aimed[ROCKETCLASSNUM][PLATFORM_MAX_PATH];
 //Explosion
 bool g_class_explosion_create[ROCKETCLASSNUM];
-int g_class_explosion_damage[ROCKETCLASSNUM];
-int g_class_explosion_push_strength[ROCKETCLASSNUM];
-int g_class_explosion_radius[ROCKETCLASSNUM];
-int  g_class_explosion_fallof_radius[ROCKETCLASSNUM];
+float g_class_explosion_damage[ROCKETCLASSNUM];
+float g_class_explosion_push_strength[ROCKETCLASSNUM];
+float g_class_explosion_radius[ROCKETCLASSNUM];
+float  g_class_explosion_fallof_radius[ROCKETCLASSNUM];
+char g_class_explosion_sound[ROCKETCLASSNUM][PLATFORM_MAX_PATH];
 
 
 
@@ -303,27 +304,28 @@ methodmap RocketClass
 		public get() { return g_class_explosion_create[ this.index ]; }
 		public set( bool allow ) { g_class_explosion_create[ this.index ] = allow; }
 	}
-	property int exp_damage
+	property float exp_damage
 	{
 		public get() { return g_class_explosion_damage[ this.index ]; }
-		public set( int ent ) { g_class_explosion_damage[ this.index ] = ent; }
+		public set( float ent ) { g_class_explosion_damage[ this.index ] = ent; }
 	}
-	property int exp_push
+	property float exp_push
 	{
 		public get() { return g_class_explosion_push_strength[ this.index ]; }
-		public set( int ent ) { g_class_explosion_push_strength[ this.index ] = ent; }
+		public set( float ent ) { g_class_explosion_push_strength[ this.index ] = ent; }
 	}
-	property int exp_radius
+	property float exp_radius
 	{
 		public get() { return g_class_explosion_radius[ this.index ]; }
-		public set( int ent ) { g_class_explosion_radius[ this.index ] = ent; }
+		public set( float ent ) { g_class_explosion_radius[ this.index ] = ent; }
 	}
-	property int exp_fallof
+	property float exp_fallof
 	{
 		public get() { return g_class_explosion_fallof_radius[ this.index ]; }
-		public set( int ent ) { g_class_explosion_fallof_radius[ this.index ] = ent; }
+		public set( float ent ) { g_class_explosion_fallof_radius[ this.index ] = ent; }
 	}
-	
-	
+	public void GetExpSound(char [] sound, int length) { strcopy(sound, length, g_class_explosion_sound[this.index]); }
+	public void SetExpSound(char [] sound) { strcopy(g_class_explosion_sound[this.index], PLATFORM_MAX_PATH, sound); }
+
 	
 }

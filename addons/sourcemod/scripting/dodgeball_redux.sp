@@ -29,6 +29,32 @@
 #define SOUND_ALERT_VOL	0.8
 #define HUD_LINE_SEPARATION 0.04
 
+//Nuke explosion
+#define PARTICLE_NUKE_1         "fireSmokeExplosion"
+#define PARTICLE_NUKE_2         "fireSmokeExplosion1"
+#define PARTICLE_NUKE_3         "fireSmokeExplosion2"
+#define PARTICLE_NUKE_4         "fireSmokeExplosion3"
+#define PARTICLE_NUKE_5         "fireSmokeExplosion4"
+#define PARTICLE_NUKE_COLLUMN   "fireSmoke_collumnP"
+#define PARTICLE_NUKE_1_ANGLES  Float:{270.0, 0.0, 0.0}
+#define PARTICLE_NUKE_2_ANGLES  PARTICLE_NUKE_1_ANGLES
+#define PARTICLE_NUKE_3_ANGLES  PARTICLE_NUKE_1_ANGLES
+#define PARTICLE_NUKE_4_ANGLES  PARTICLE_NUKE_1_ANGLES
+#define PARTICLE_NUKE_5_ANGLES  PARTICLE_NUKE_1_ANGLES
+#define PARTICLE_NUKE_COLLUMN_ANGLES  PARTICLE_NUKE_1_ANGLES
+
+enum
+{
+	rsnd_spawn,
+	rsnd_alert,
+	rsnd_bludeflect,
+	rsnd_reddeflect,
+	rsnd_beep,
+	rsnd_bounce,
+	rsnd_aimed,
+	rsnd_exp
+}
+
 // ---- Variables --------------------------------------------------------------
 bool g_isDBmap = false;
 bool g_onPreparation = false;
@@ -36,7 +62,6 @@ bool g_roundActive = false;
 bool g_canSpawn = false;
 bool g_canEmitKillSound = true;
 int g_lastSpawned;
-
 
 int g_BlueSpawn = -1;
 int g_RedSpawn = -1;
@@ -78,7 +103,6 @@ StringMap g_RestrictedWeps;
 StringMap g_CommandToBlock;
 StringMap g_BlockOnlyOnPreparation;
 
-
 //Spawner
 int g_max_rockets;
 float g_spawn_delay;
@@ -88,7 +112,6 @@ StringMap g_class_chance;
 RocketClass g_RocketClass[MAXROCKETCLASS];
 int g_RocketClass_count;
 RocketEnt g_RocketEnt[MAXROCKETS];
-
 
 // ---- Server's CVars Management ----------------------------------------------
 Handle db_airdash;
@@ -157,14 +180,13 @@ public void OnPluginStart()
 	BuildPath(Path_SM, g_rocketclasses, PLATFORM_MAX_PATH, "data/dodgeball/rocketclasses.cfg");
 }
 
-
 /* OnMapStart()
 **
 ** Here we reset every global variable, and we check if the current map is a dodgeball map.
 ** If it is a db map, we get the cvars def. values and the we set up our own values.
 ** -------------------------------------------------------------------------- */
 public void OnMapStart()
-{	
+{
 	char mapname[128];
 	GetCurrentMap(mapname, sizeof(mapname));
 	if (strncmp(mapname, "db_", 3, false) == 0 || (strncmp(mapname, "tfdb_", 5, false) == 0) )
@@ -180,10 +202,6 @@ public void OnMapStart()
 		PrecacheFiles();
 		ProcessListeners(false);
 		
-		if(g_hud_show)
-		{
-			CreateTimer(0.1,TimerHud,_,TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
-		}
 	}
  	else
 	{
@@ -269,47 +287,50 @@ void LoadRocketClasses()
 	defClass.bouncedelay = kv.GetFloat("BouceDelay",0.1);
 	
 	//Sounds
-	if(kv.JumpToKey("sounds")) 
-	{
-		//Spawn
-		defClass.snd_spawn_use = !!kv.GetNum("PlaySpawnSound",1);
-		kv.GetString("SpawnSound",auxPath,PLATFORM_MAX_PATH,"");
-		defClass.SetSndSpawn(auxPath);
-		//Alert
-		defClass.snd_alert_use = !!kv.GetNum("PlayAlertSound",1);
-		kv.GetString("AlertSound",auxPath,PLATFORM_MAX_PATH,"");
-		defClass.SetSndAlert(auxPath);
-		//Deflect
-		defClass.snd_deflect_use = !!kv.GetNum("PlayDeflectSound",1);
-		kv.GetString("RedDeflectSound",auxPath,PLATFORM_MAX_PATH,"");
-		defClass.SetSndDeflectRed(auxPath);
-		kv.GetString("BlueDeflectSound",auxPath,PLATFORM_MAX_PATH,"");
-		defClass.SetSndDeflectBlue(auxPath);
-		//Beep
-		defClass.snd_beep_use = !!kv.GetNum("PlayBeepSound",1);
-		kv.GetString("BeepSound",auxPath,PLATFORM_MAX_PATH,"");
-		defClass.SetSndBeep(auxPath);
-		defClass.snd_beep_delay = kv.GetFloat("BeepInterval",1.0);
-		//Bounce
-		defClass.snd_bounce_use = !!kv.GetNum("PlayBounceSound",1);
-		kv.GetString("BounceSound",auxPath,PLATFORM_MAX_PATH,"");
-		defClass.SetSndBounce(auxPath);
-		//Aimed
-		defClass.snd_aimed_use = !!kv.GetNum("PlayAimedSound",1);
-		kv.GetString("AimedSound",auxPath,PLATFORM_MAX_PATH,"");
-		defClass.SetSndAimed(auxPath);
-		kv.GoBack();
-	}
+
+	//Spawn
+	defClass.snd_spawn_use = !!kv.GetNum("PlaySpawnSound",1);
+	kv.GetString("SpawnSound",auxPath,PLATFORM_MAX_PATH,"");
+	defClass.SetSndSpawn(auxPath);
+	//Alert
+	defClass.snd_alert_use = !!kv.GetNum("PlayAlertSound",1);
+	kv.GetString("AlertSound",auxPath,PLATFORM_MAX_PATH,"");
+	defClass.SetSndAlert(auxPath);
+	//Deflect
+	defClass.snd_deflect_use = !!kv.GetNum("PlayDeflectSound",1);
+	kv.GetString("RedDeflectSound",auxPath,PLATFORM_MAX_PATH,"");
+	defClass.SetSndDeflectRed(auxPath);
+	kv.GetString("BlueDeflectSound",auxPath,PLATFORM_MAX_PATH,"");
+	defClass.SetSndDeflectBlue(auxPath);
+	//Beep
+	defClass.snd_beep_use = !!kv.GetNum("PlayBeepSound",1);
+	kv.GetString("BeepSound",auxPath,PLATFORM_MAX_PATH,"");
+	defClass.SetSndBeep(auxPath);
+	defClass.snd_beep_delay = kv.GetFloat("BeepInterval",1.0);
+	//Bounce
+	defClass.snd_bounce_use = !!kv.GetNum("PlayBounceSound",1);
+	kv.GetString("BounceSound",auxPath,PLATFORM_MAX_PATH,"");
+	defClass.SetSndBounce(auxPath);
+	//Aimed
+	defClass.snd_aimed_use = !!kv.GetNum("PlayAimedSound",1);
+	kv.GetString("AimedSound",auxPath,PLATFORM_MAX_PATH,"");
+	defClass.SetSndAimed(auxPath);
+		
 	//Explosion
 	if(kv.JumpToKey("explosion"))
 	{
 		defClass.exp_use = !!kv.GetNum("CreateBigExplosion",0);
-		defClass.exp_damage = kv.GetNum("Damage",200);
-		defClass.exp_push = kv.GetNum("PushStrength",1000);
-		defClass.exp_radius = kv.GetNum("Radius",1000);
-		defClass.exp_fallof = kv.GetNum("FallOfRadius",600);
+		defClass.exp_damage = kv.GetFloat("Damage",200.0);
+		defClass.exp_push = kv.GetFloat("PushStrength",1000.0);
+		defClass.exp_radius = kv.GetFloat("Radius",1000.0);
+		defClass.exp_fallof = kv.GetFloat("FallOfRadius",600.0);
+		kv.GetString("Sound",auxPath,PLATFORM_MAX_PATH,"");
+		defClass.SetExpSound(auxPath);
 		kv.GoBack();
 	}
+	else
+		defClass.exp_use = false;
+		
 	kv.GoBack();
 	
 	//Here we read all the classes
@@ -322,7 +343,7 @@ void LoadRocketClasses()
 	int count = 0;
 	kv.GotoFirstSubKey();
 	do
-    {
+	{
 		//Rocket Name (section name)
 		kv.GetSectionName(name,MAX_NAME_LENGTH);
 		g_RocketClass[count].SetName(name);
@@ -355,57 +376,61 @@ void LoadRocketClasses()
 		g_RocketClass[count].bouncedelay = kv.GetFloat("BouceDelay",defClass.bouncedelay);
 		
 		//Sounds
-		if(kv.JumpToKey("sounds"))
-		{
-			//Spawn
-			g_RocketClass[count].snd_spawn_use = !!kv.GetNum("PlaySpawnSound",defClass.snd_spawn_use);
-			defClass.GetSndSpawn(auxPath,PLATFORM_MAX_PATH);
-			kv.GetString("SpawnSound",auxPath,PLATFORM_MAX_PATH,auxPath);
-			g_RocketClass[count].SetSndSpawn(auxPath);
-			//Alert
-			g_RocketClass[count].snd_alert_use = !!kv.GetNum("PlayAlertSound",defClass.snd_alert_use);
-			defClass.GetSndAlert(auxPath,PLATFORM_MAX_PATH);
-			kv.GetString("AlertSound",auxPath,PLATFORM_MAX_PATH,auxPath);
-			g_RocketClass[count].SetSndAlert(auxPath);
-			//Deflect
-			g_RocketClass[count].snd_deflect_use = !!kv.GetNum("PlayDeflectSound",defClass.snd_deflect_use);
-			defClass.GetSndDeflectRed(auxPath,PLATFORM_MAX_PATH);
-			kv.GetString("RedDeflectSound",auxPath,PLATFORM_MAX_PATH,auxPath);
-			g_RocketClass[count].SetSndDeflectRed(auxPath);
-			defClass.GetSndDeflectBlue(auxPath,PLATFORM_MAX_PATH);
-			kv.GetString("BlueDeflectSound",auxPath,PLATFORM_MAX_PATH,auxPath);
-			g_RocketClass[count].SetSndDeflectBlue(auxPath);
-			//Beep
-			g_RocketClass[count].snd_beep_use = !!kv.GetNum("PlayBeepSound",defClass.snd_beep_use);
-			defClass.GetSndBeep(auxPath,PLATFORM_MAX_PATH);
-			kv.GetString("BeepSound",auxPath,PLATFORM_MAX_PATH,auxPath);
-			g_RocketClass[count].SetSndBeep(auxPath);
-			g_RocketClass[count].snd_beep_delay = kv.GetFloat("BeepInterval",defClass.snd_beep_delay);
-			//Bounce
-			g_RocketClass[count].snd_bounce_use = !!kv.GetNum("PlayBounceSound",defClass.snd_aimed_use);
-			defClass.GetSndBounce(auxPath,PLATFORM_MAX_PATH);
-			kv.GetString("BounceSound",auxPath,PLATFORM_MAX_PATH,auxPath);
-			g_RocketClass[count].SetSndBounce(auxPath);
-			//Aimed
-			g_RocketClass[count].snd_aimed_use = !!kv.GetNum("PlayAimedSound",defClass.snd_aimed_use);
-			defClass.GetSndAimed(auxPath,PLATFORM_MAX_PATH);
-			kv.GetString("AimedSound",auxPath,PLATFORM_MAX_PATH,auxPath);
-			g_RocketClass[count].SetSndAimed(auxPath);
-			kv.GoBack();
-		}
+		
+		//Spawn
+		g_RocketClass[count].snd_spawn_use = !!kv.GetNum("PlaySpawnSound",defClass.snd_spawn_use);
+		defClass.GetSndSpawn(auxPath,PLATFORM_MAX_PATH);
+		kv.GetString("SpawnSound",auxPath,PLATFORM_MAX_PATH,auxPath);
+		g_RocketClass[count].SetSndSpawn(auxPath);
+		//Alert
+		g_RocketClass[count].snd_alert_use = !!kv.GetNum("PlayAlertSound",defClass.snd_alert_use);
+		defClass.GetSndAlert(auxPath,PLATFORM_MAX_PATH);
+		kv.GetString("AlertSound",auxPath,PLATFORM_MAX_PATH,auxPath);
+		g_RocketClass[count].SetSndAlert(auxPath);
+		//Deflect
+		g_RocketClass[count].snd_deflect_use = !!kv.GetNum("PlayDeflectSound",defClass.snd_deflect_use);
+		defClass.GetSndDeflectRed(auxPath,PLATFORM_MAX_PATH);
+		kv.GetString("RedDeflectSound",auxPath,PLATFORM_MAX_PATH,auxPath);
+		g_RocketClass[count].SetSndDeflectRed(auxPath);
+		defClass.GetSndDeflectBlue(auxPath,PLATFORM_MAX_PATH);
+		kv.GetString("BlueDeflectSound",auxPath,PLATFORM_MAX_PATH,auxPath);
+		g_RocketClass[count].SetSndDeflectBlue(auxPath);
+		//Beep
+		g_RocketClass[count].snd_beep_use = !!kv.GetNum("PlayBeepSound",defClass.snd_beep_use);
+		defClass.GetSndBeep(auxPath,PLATFORM_MAX_PATH);
+		kv.GetString("BeepSound",auxPath,PLATFORM_MAX_PATH,auxPath);
+		g_RocketClass[count].SetSndBeep(auxPath);
+		g_RocketClass[count].snd_beep_delay = kv.GetFloat("BeepInterval",defClass.snd_beep_delay);
+		//Bounce
+		g_RocketClass[count].snd_bounce_use = !!kv.GetNum("PlayBounceSound",defClass.snd_aimed_use);
+		defClass.GetSndBounce(auxPath,PLATFORM_MAX_PATH);
+		kv.GetString("BounceSound",auxPath,PLATFORM_MAX_PATH,auxPath);
+		g_RocketClass[count].SetSndBounce(auxPath);
+		//Aimed
+		g_RocketClass[count].snd_aimed_use = !!kv.GetNum("PlayAimedSound",defClass.snd_aimed_use);
+		defClass.GetSndAimed(auxPath,PLATFORM_MAX_PATH);
+		kv.GetString("AimedSound",auxPath,PLATFORM_MAX_PATH,auxPath);
+		g_RocketClass[count].SetSndAimed(auxPath);
+		
 		//Explosion
 		if(kv.JumpToKey("explosion"))
 		{
 			g_RocketClass[count].exp_use = !!kv.GetNum("CreateBigExplosion",defClass.exp_use);
-			g_RocketClass[count].exp_damage = kv.GetNum("Damage",defClass.exp_damage);
-			g_RocketClass[count].exp_push = kv.GetNum("PushStrength",defClass.exp_push);
-			g_RocketClass[count].exp_radius = kv.GetNum("Radius",defClass.exp_radius);
-			g_RocketClass[count].exp_fallof = kv.GetNum("FallOfRadius",defClass.exp_fallof);
+			g_RocketClass[count].exp_damage = kv.GetFloat("Damage",defClass.exp_damage);
+			g_RocketClass[count].exp_push = kv.GetFloat("PushStrength",defClass.exp_push);
+			g_RocketClass[count].exp_radius = kv.GetFloat("Radius",defClass.exp_radius);
+			g_RocketClass[count].exp_fallof = kv.GetFloat("FallOfRadius",defClass.exp_fallof);
+			defClass.GetExpSound(auxPath,PLATFORM_MAX_PATH);
+			kv.GetString("Sound",auxPath,PLATFORM_MAX_PATH,auxPath);
+			g_RocketClass[count].SetExpSound(auxPath);
+			
 			kv.GoBack();
 		}
+		else
+			g_RocketClass[count].exp_use = false;
 		count++;
 	}
-    while (kv.GotoNextKey() && count < MAXROCKETCLASS);
+	while (kv.GotoNextKey() && count < MAXROCKETCLASS);
 	delete kv;
 	g_RocketClass_count = count;
 		
@@ -543,6 +568,7 @@ void LoadConfigs()
 		}
 		kv.GoBack();		
 	}
+	kv.Rewind();
 	if(kv.JumpToKey("blockedflamethrowers"))
 	{
 		char key[4];
@@ -558,6 +584,7 @@ void LoadConfigs()
 		
 		kv.GoBack();	
 	}
+	kv.Rewind();
 	if(kv.JumpToKey("blockcommands"))
 	{
 		do
@@ -630,6 +657,14 @@ public void PrecacheFiles()
 	for( int i = 0; i < MAXMULTICOLORHUD; i++)
 		if(!StrEqual(g_mrc_trail[i],""))
 			PrecacheTrail(g_mrc_trail[i]);
+	
+	
+	PrecacheParticle(PARTICLE_NUKE_1);
+	PrecacheParticle(PARTICLE_NUKE_2);
+	PrecacheParticle(PARTICLE_NUKE_3);
+	PrecacheParticle(PARTICLE_NUKE_4);
+	PrecacheParticle(PARTICLE_NUKE_5);
+	PrecacheParticle(PARTICLE_NUKE_COLLUMN);
 			
 	char auxPath[PLATFORM_MAX_PATH];
 	for( int i = 0; i < g_RocketClass_count; i++)
@@ -661,6 +696,9 @@ public void PrecacheFiles()
 		if(!StrEqual(auxPath,""))	
 			PrecacheSoundFile(auxPath);
 		g_RocketClass[i].GetSndBounce(auxPath,PLATFORM_MAX_PATH);
+		if(!StrEqual(auxPath,""))	
+			PrecacheSoundFile(auxPath);
+		g_RocketClass[i].GetExpSound(auxPath,PLATFORM_MAX_PATH);
 		if(!StrEqual(auxPath,""))	
 			PrecacheSoundFile(auxPath);
 	}
@@ -725,39 +763,39 @@ PrecacheTrail(char[] strFileName)
 ** -------------------------------------------------------------------------- */
 stock PrecacheModelEx(String:strFileName[], bool:bPreload=false, bool:bAddToDownloadTable=false)
 {
-    PrecacheModel(strFileName, bPreload);
-    if (bAddToDownloadTable)
-    {
-        decl String:strDepFileName[PLATFORM_MAX_PATH];
-        Format(strDepFileName, sizeof(strDepFileName), "%s.res", strFileName);
-        
-        if (FileExists(strDepFileName))
-        {
-            // Open stream, if possible
-            new Handle:hStream = OpenFile(strDepFileName, "r");
-            if (hStream == INVALID_HANDLE) { LogMessage("Error, can't read file containing model dependencies."); return; }
-            
-            while(!IsEndOfFile(hStream))
-            {
-                decl String:strBuffer[PLATFORM_MAX_PATH];
-                ReadFileLine(hStream, strBuffer, sizeof(strBuffer));
-                CleanString(strBuffer);
-                
-                // If file exists...
-                if (FileExists(strBuffer, true))
-                {
-                    // Precache depending on type, and add to download table
-                    if (StrContains(strBuffer, ".vmt", false) != -1)      PrecacheDecal(strBuffer, true);
-                    else if (StrContains(strBuffer, ".mdl", false) != -1) PrecacheModel(strBuffer, true);
-                    else if (StrContains(strBuffer, ".pcf", false) != -1) PrecacheGeneric(strBuffer, true);
-                    AddFileToDownloadsTable(strBuffer);
-                }
-            }
-            
-            // Close file
-            CloseHandle(hStream);
-        }
-    }
+	PrecacheModel(strFileName, bPreload);
+	if (bAddToDownloadTable)
+	{
+		decl String:strDepFileName[PLATFORM_MAX_PATH];
+		Format(strDepFileName, sizeof(strDepFileName), "%s.res", strFileName);
+		
+		if (FileExists(strDepFileName))
+		{
+			// Open stream, if possible
+			new Handle:hStream = OpenFile(strDepFileName, "r");
+			if (hStream == INVALID_HANDLE) {LogMessage("Error, can't read file containing model dependencies."); return; }
+			
+			while(!IsEndOfFile(hStream))
+			{
+				decl String:strBuffer[PLATFORM_MAX_PATH];
+				ReadFileLine(hStream, strBuffer, sizeof(strBuffer));
+				CleanString(strBuffer);
+				
+				// If file exists...
+				if (FileExists(strBuffer, true))
+				{
+					// Precache depending on type, and add to download table
+					if (StrContains(strBuffer, ".vmt", false) != -1)	  PrecacheDecal(strBuffer, true);
+					else if (StrContains(strBuffer, ".mdl", false) != -1) PrecacheModel(strBuffer, true);
+					else if (StrContains(strBuffer, ".pcf", false) != -1) PrecacheGeneric(strBuffer, true);
+					AddFileToDownloadsTable(strBuffer);
+				}
+			}
+			
+			// Close file
+			CloseHandle(hStream);
+		}
+	}
 }
 
 /* ProcessListeners()
@@ -829,6 +867,7 @@ public Action OnRoundStart(Handle event, const char[] name, bool dontBroadcast)
 {
 	if(!g_isDBmap) return;
 	SearchSpawns();
+	RenderHud();
 	for(int i = 1; i <= MaxClients; i++)
 		if(IsClientInGame(i) && IsPlayerAlive(i))
 		{
@@ -838,11 +877,7 @@ public Action OnRoundStart(Handle event, const char[] name, bool dontBroadcast)
 	g_onPreparation = false;
 	g_roundActive = true;
 	g_canSpawn = true;
-	if(GetRandomInt(0,1))
-		g_lastSpawned = TEAM_RED;
-	else
-		g_lastSpawned = TEAM_BLUE;
-	
+	g_lastSpawned = GetRandomInt(2,3);
 	FireRocket();
 
 }
@@ -853,14 +888,28 @@ public Action OnRoundStart(Handle event, const char[] name, bool dontBroadcast)
 ** -------------------------------------------------------------------------- */
 public Action OnRoundEnd(Handle event, const char[] name, bool dontBroadcast)
 {
+	if(!g_isDBmap) return;
 	g_roundActive=false;
 	for(int i = 0; i < g_max_rockets; i++)
 	{
 		if(IsValidEntity(g_RocketEnt[i].entity))
-			AcceptEntityInput(g_RocketEnt[i].entity, "Kill");
+		{
+			int dissolver = CreateEntityByName("env_entity_dissolver");
+
+			if (dissolver == -1)  return;
+			
+			DispatchKeyValue(dissolver, "dissolvetype", "0");
+			DispatchKeyValue(dissolver, "magnitude", "1");
+			DispatchKeyValue(dissolver, "target", "!activator");
+
+			AcceptEntityInput(dissolver, "Dissolve", g_RocketEnt[i].entity);
+			AcceptEntityInput(dissolver, "Kill");
+		}
+		//AcceptEntityInput(g_RocketEnt[i].entity, "Kill");
 	}
+	ClearHud();
 	/*if(g_RocketEnt != -1)
-	{	
+	{
 		if (IsValidEntity(g_RocketEnt)) 
 			RemoveEdict(g_RocketEnt);
 	}*/
@@ -913,7 +962,7 @@ public Action OnPlayerInventory(Handle event, const char[] name, bool dontBroadc
 	{
 		int wep_index = GetEntProp(wep_ent, Prop_Send, "m_iItemDefinitionIndex"); 
 		if (wep_ent > MaxClients && IsValidEdict(wep_ent) && GetEdictClassname(wep_ent, classname, sizeof(classname)))
-		{	
+		{
 			if (StrEqual(classname, "tf_weapon_flamethrower", false) )
 			{
 				char key[4];
@@ -962,7 +1011,7 @@ public Action OnPlayerSpawn(Handle event, const char[] name, bool dontBroadcast)
 	int client = GetClientOfUserId(GetEventInt(event, "userid"));
 	int class = GetEntProp(client, Prop_Send, "m_iClass");
 	if(g_pyro_only)
-	{			
+	{		
 		if(!(class == CLASS_PYRO || class == 0 ))
 		{
 			SetEntProp(client, Prop_Send, "m_iDesiredPlayerClass", CLASS_PYRO);			
@@ -980,7 +1029,6 @@ public Action OnPlayerSpawn(Handle event, const char[] name, bool dontBroadcast)
 	if(g_onPreparation)
 		SetEntityMoveType(client, MOVETYPE_NONE);	
 }
-
 
 
 /* OnPlayerDeath()
@@ -1007,15 +1055,22 @@ public Action:OnPlayerDeath(Handle:event, const String:name[], bool:dontBroadcas
 	if(aliveTeammates == 1)
 		EmitRandomSound(g_SndLastAlive,GetLastPlayer(GetClientTeam(client),client));
 	
+	int iInflictor = GetEventInt(event, "inflictor_entindex");
+	int rIndex = GetRocketIndex(iInflictor);
+	if(rIndex >= 0)
+	{	int class = g_RocketEnt[rIndex].class;
+		if(g_RocketClass[class].exp_use)
+			CreateExplosion(rIndex);
+	}
+	
+	
 
 }
-
 
 public Action ReenableKillSound(Handle timer, int data)
 {
 	g_canEmitKillSound = true;
 }
-
 
 
 
@@ -1179,8 +1234,8 @@ public int SearchTarget(int rIndex)
 		}
 		if(possibleNumber == 0)
 		{
-			if(g_roundActive)
-				LogError("[DB] Tried to fire a rocket but there weren't any player available.");
+			//if(g_roundActive)
+				//LogError("[DB] Tried to fire a rocket but there weren't any player available.");
 			return -1;
 		}
 	}
@@ -1224,22 +1279,27 @@ public int SearchTarget(int rIndex)
 
 /* TryFireRocket()
 **
-** Timer used to spawn a new rocket.
+** Timer used to try fire a new rocket.
 ** -------------------------------------------------------------------------- */
 public Action TryFireRocket(Handle timer, int data)
 {
-	if(!g_canSpawn)
-		return;
 	FireRocket();
 
 }
+/* AllowSpawn()
+**
+** Timer used to allow the new rocket and fire it.
+** -------------------------------------------------------------------------- */
 public Action AllowSpawn(Handle timer, int data)
 {
 	g_canSpawn = true;
-	if(g_roundActive)
-		FireRocket();
+	FireRocket();
 }
-
+/* FireRocket()
+**
+** Function used to spawn the actual rocket.
+** This will check if there are available slots and won't fire if a rocket was fired recently.
+** -------------------------------------------------------------------------- */
 public void FireRocket()
 {
 	if(!g_isDBmap || !g_roundActive) return;
@@ -1337,6 +1397,9 @@ public void FireRocket()
 			
 		g_ClientAimed[g_RocketEnt[rIndex].target]++;
 		
+		EmitSoundClientDB(g_RocketEnt[rIndex].target, rsnd_alert ,rIndex,false);
+		EmitSoundAllDB( rsnd_spawn,rIndex,true);
+		/*
 		if(g_RocketClass[class].snd_spawn_use)
 		{
 			g_RocketClass[class].GetSndSpawn(auxPath,PLATFORM_MAX_PATH);
@@ -1348,6 +1411,7 @@ public void FireRocket()
 			g_RocketClass[class].GetSndAlert(auxPath,PLATFORM_MAX_PATH);
 			EmitSoundDB(g_RocketEnt[rIndex].target,auxPath);
 		}
+		*/
 		if(g_RocketClass[class].snd_beep_use)
 			g_RocketEnt[rIndex].beeptimer = CreateTimer(g_RocketClass[class].snd_beep_delay,RocketBeep,rIndex,TIMER_REPEAT);
 		/*
@@ -1367,6 +1431,7 @@ public void FireRocket()
 		
 		g_lastSpawned = rocketTeam;
 		g_canSpawn = false;
+		RenderHud();
 		CreateTimer(g_spawn_delay,AllowSpawn);
 		//LogMessage("Fired a rocket, class= %d",class);
 		
@@ -1441,7 +1506,7 @@ public void AttachLight(int rIndex)
 	{
 		DispatchKeyValue(iLightEntity, "inner_cone", "0");
 		DispatchKeyValue(iLightEntity, "cone", "80");
-		DispatchKeyValue(iLightEntity, "brightness", "5");
+		DispatchKeyValue(iLightEntity, "brightness", "10");
 		DispatchKeyValueFloat(iLightEntity, "spotlight_radius", 100.0);
 		DispatchKeyValueFloat(iLightEntity, "distance", 150.0);
 		DispatchKeyValue(iLightEntity, "_light", g_mrc_color[colornum]);
@@ -1451,7 +1516,7 @@ public void AttachLight(int rIndex)
 		
 		decl Float:fOrigin[3];
 		GetEntPropVector(entity, Prop_Data, "m_vecOrigin", fOrigin);
-        
+		
 		fOrigin[2] += 40.0;
 		TeleportEntity(iLightEntity, fOrigin, NULL_VECTOR, NULL_VECTOR);
 
@@ -1476,21 +1541,27 @@ public Action RocketBeep(Handle timer, int rIndex)
 	char auxPath[PLATFORM_MAX_PATH];
 	int class = g_RocketEnt[rIndex].class;
 	g_RocketClass[class].GetSndBeep(auxPath,PLATFORM_MAX_PATH);
-	EmitSoundDB(g_RocketEnt[rIndex].target,auxPath);
+	EmitSoundAllDB(rsnd_beep,rIndex,true);
+	//EmitSoundDBAll(auxPath);
 	return Plugin_Continue;
 }
-
 
 public Action OnStartTouch(int entity, int other)
 {
 	if (other > 0 && other <= MaxClients)
 		return Plugin_Continue;
-	
+		
 	int rIndex = GetRocketIndex(entity);
-	int class = g_RocketEnt[rIndex].class;
-	// Only allow a rocket to bounce x times.
+	int class = g_RocketEnt[rIndex].class;	
+	//We check the bounce counter
 	if (g_RocketEnt[rIndex].bounces >= g_RocketClass[class].maxbounce)
+	{
+		if(g_RocketClass[class].exp_use)
+		{
+			CreateExplosion(rIndex);
+		}
 		return Plugin_Continue;
+	}
 	
 	SDKHook(entity, SDKHook_Touch, OnTouch);
 	return Plugin_Handled;
@@ -1498,6 +1569,7 @@ public Action OnStartTouch(int entity, int other)
 
 public Action OnTouch(int entity, int other)
 {
+		
 	float vOrigin[3];
 	GetEntPropVector(entity, Prop_Data, "m_vecOrigin", vOrigin);
 	
@@ -1533,18 +1605,14 @@ public Action OnTouch(int entity, int other)
 	
 	TeleportEntity(entity, NULL_VECTOR, vNewAngles, vBounceVec);
 
+	
 	int rIndex = GetRocketIndex(entity);
+	int class = g_RocketEnt[rIndex].class;	
 	g_RocketEnt[rIndex].bounces++;
 	g_RocketEnt[rIndex].homing = false;
-	int class = g_RocketEnt[rIndex].class;
 	
-	if(g_RocketClass[class].snd_bounce_use)
-	{
-		char auxPath[PLATFORM_MAX_PATH];
-		g_RocketClass[class].GetSndBounce(auxPath,PLATFORM_MAX_PATH);
-		EmitSoundDBAll(auxPath);
-	}
-		
+	EmitSoundAllDB(rsnd_bounce,rIndex,true);
+	
 	CreateTimer(g_RocketClass[class].bouncedelay,EnableHoming,rIndex);
 	SDKUnhook(entity, SDKHook_Touch, OnTouch);
 	return Plugin_Handled;
@@ -1562,7 +1630,6 @@ public bool TEF_ExcludeEntity(int entity, int contentsMask, int data)
 ** -------------------------------------------------------------------------- */
 public void OnGameFrame()
 {
-	
 	if(!g_isDBmap) return;
 	for(int i = 1; i <= MaxClients; i++)
 	{
@@ -1607,8 +1674,19 @@ public void OnGameFrame()
 			g_ClientAimed[g_RocketEnt[i].target]++;
 			
 			g_RocketEnt[i].deflects++;
-			
-			
+			g_RocketEnt[i].bounces = 0;
+			EmitSoundClientDB(g_RocketEnt[i].target, rsnd_alert ,i,false);
+			if(g_RocketEnt[i].aimed && g_RocketClass[class].snd_aimed_use)
+				EmitSoundAllDB(rsnd_aimed,i,false);
+			else
+			{
+				int rTeam = GetEntProp(g_RocketEnt[i].entity, Prop_Send, "m_iTeamNum", 1);
+				if(rTeam == TEAM_RED)
+					EmitSoundAllDB(rsnd_bludeflect,i,true);
+				else
+					EmitSoundAllDB(rsnd_reddeflect,i,true);
+			}
+		/*
 			if(g_RocketEnt[i].aimed && g_RocketClass[class].snd_aimed_use)
 			{
 				char auxPath[PLATFORM_MAX_PATH];
@@ -1619,13 +1697,12 @@ public void OnGameFrame()
 			else if(g_RocketClass[class].snd_deflect_use)
 			{
 				char auxPath[PLATFORM_MAX_PATH];
-				int rTeam = GetEntProp(g_RocketEnt[i].entity, Prop_Send, "m_iTeamNum", 1);
 				if(rTeam == TEAM_RED)
 					g_RocketClass[class].GetSndDeflectBlue(auxPath,PLATFORM_MAX_PATH);
 				else
 					g_RocketClass[class].GetSndDeflectRed(auxPath,PLATFORM_MAX_PATH);
 				EmitSoundDBAll(auxPath);
-			}
+			}*/
 			/*
 			if(IsValidAliveClient(g_RocketEnt[i].target))
 			{
@@ -1650,6 +1727,7 @@ public void OnGameFrame()
 			g_RocketEnt[i].homing = false;
 			g_RocketEnt[i].owner = GetEntPropEnt(g_RocketEnt[i].entity, Prop_Send, "m_hOwnerEntity");
 			CreateTimer(g_RocketClass[class].deflectdelay,EnableHoming,i);
+			RenderHud();
 		}
 		//If isn't a deflect then we have to modify the rocket's direction and velocity
 		else
@@ -1712,6 +1790,23 @@ public Action EnableHoming(Handle timer, int rIndex)
 	g_RocketEnt[rIndex].homing = true;
 }
 
+public OnEntityCreated(entity, const String:classname[])
+{
+	if(!g_isDBmap) return;
+	if(!StrEqual("tf_ammo_pack",classname)) return;
+	
+	int dissolver = CreateEntityByName("env_entity_dissolver");
+
+	if (dissolver == -1) return;
+	
+	DispatchKeyValue(dissolver, "dissolvetype", "0");
+	DispatchKeyValue(dissolver, "magnitude", "1");
+	DispatchKeyValue(dissolver, "target", "!activator");
+
+	AcceptEntityInput(dissolver, "Dissolve", entity);
+	AcceptEntityInput(dissolver, "Kill");
+}
+
 /* OnEntityDestroyed()
 **
 ** We check if the rocket got destroyed, and then fire a timer for a new rocket.
@@ -1734,6 +1829,7 @@ public OnEntityDestroyed(entity)
 	g_RocketEnt[rIndex].aimed = false;
 	g_RocketEnt[rIndex].homing = false;
 	CloseHandle (g_RocketEnt[rIndex].beeptimer);
+	RenderHud();
 	if(g_roundActive)
 	{
 		CreateTimer(g_spawn_delay, TryFireRocket);
@@ -1766,150 +1862,236 @@ public OnEntityDestroyed(entity)
 	}*/
 	
 }
-/*
-stock ShowHud( Float:h_duration=0.1, Float:h_speed=0.0, h_reflects=-1, h_owner=-1, h_target=0)
-{
 
-	for(new i = 1; i <= MaxClients; i++)
-	{
-		if(!IsClientConnected(i) || !IsClientInGame(i) || IsFakeClient(i))
-			continue;
-			
-		if(g_RocketAimed)
-			SetHudTextParams(g_InfoX, g_InfoY, h_duration, ALERT_R, ALERT_G, ALERT_B, 255, 0, 0.0, 0.0, 0.0);
-		else
-			SetHudTextParams(g_InfoX, g_InfoY, h_duration, DEF_R, DEF_G, DEF_B, 255, 0, 0.0, 0.0, 0.0);
-		if(h_speed > 0.0)
-			ShowSyncHudText(i, g_HudSyncs[hud_Speed], "Speed: %.1f", h_speed);
-		else
-			ShowSyncHudText(i, g_HudSyncs[hud_Speed], "Speed: -");
-
-		SetHudTextParams(g_InfoX, g_InfoY + HUD_LINE_SEPARATION, h_duration, DEF_R, DEF_G, DEF_B, 255, 0, 0.0, 0.0, 0.0);
-		if(h_reflects > -1)
-			ShowSyncHudText(i, g_HudSyncs[hud_Reflects], "Reflects: %d", h_reflects);
-		else
-			ShowSyncHudText(i, g_HudSyncs[hud_Reflects], "Reflects: -");		
-
-		SetHudTextParams(g_InfoX, g_InfoY + HUD_LINE_SEPARATION*2, h_duration, DEF_R, DEF_G, DEF_B, 255, 0, 0.0, 0.0, 0.0);
-		if(h_owner > 0 && h_owner <= MaxClients)
-			ShowSyncHudText(i, g_HudSyncs[hud_Owner], "Owner: %N", h_owner);
-		else if(h_owner == 0)
-			ShowSyncHudText(i, g_HudSyncs[hud_Owner], "Owner: Server");
-		else
-			ShowSyncHudText(i, g_HudSyncs[hud_Owner], "Owner: -");
-			
-		SetHudTextParams(g_InfoX, g_InfoY + HUD_LINE_SEPARATION*3, h_duration, DEF_R, DEF_G, DEF_B, 255, 0, 0.0, 0.0, 0.0);
-		if(h_target > 0 && h_target <= MaxClients)
-			ShowSyncHudText(i, g_HudSyncs[hud_Target], "Target: %N", h_target);
-		else
-			ShowSyncHudText(i, g_HudSyncs[hud_Target], "Target: -");
-	}
-}
-*/
-
-/* TimerHud()
+/* CmdShockwave()
 **
-** Timer to manage the hud
+** Creates a huge shockwave at the location of the client, with the given
+** parameters.
 ** -------------------------------------------------------------------------- */
-public Action TimerHud(Handle timer, int data)
+public CreateExplosion(rIndex)
 {
+	int class = g_RocketEnt[rIndex].class;
+	float fPosition[3]; 
+	int	iTeam = GetEntProp(g_RocketEnt[rIndex].entity, Prop_Send, "m_iTeamNum", 1);
+	GetEntPropVector(g_RocketEnt[rIndex].entity, Prop_Data, "m_vecOrigin", fPosition);
+		
+	switch (GetRandomInt(0, 4))
+	{
+		case 0: { PlayParticle(fPosition, PARTICLE_NUKE_1_ANGLES, PARTICLE_NUKE_1); }
+		case 1: { PlayParticle(fPosition, PARTICLE_NUKE_2_ANGLES, PARTICLE_NUKE_2); }
+		case 2: { PlayParticle(fPosition, PARTICLE_NUKE_3_ANGLES, PARTICLE_NUKE_3); }
+		case 3: { PlayParticle(fPosition, PARTICLE_NUKE_4_ANGLES, PARTICLE_NUKE_4); }
+		case 4: { PlayParticle(fPosition, PARTICLE_NUKE_5_ANGLES, PARTICLE_NUKE_5); }
+	}
+	PlayParticle(fPosition, PARTICLE_NUKE_COLLUMN_ANGLES, PARTICLE_NUKE_COLLUMN);
+	
+	//EmitSoundToAll(, g_RocketEnt[rIndex].entity, _, SNDLEVEL_TRAIN,_,SOUND_ALERT_VOL);
+		
+	for (int iClient = 1; iClient <= MaxClients; iClient++)
+	{
+		if(IsValidAliveClient(iClient) && GetClientTeam(iClient) != iTeam)
+		{
+			decl Float:fPlayerPosition[3]; GetClientEyePosition(iClient, fPlayerPosition);
+			new Float:fDistanceToShockwave = GetVectorDistance(fPosition, fPlayerPosition);
+			
+			if (fDistanceToShockwave < g_RocketClass[class].exp_radius)
+			{
+				float fImpulse[3], fFinalPush;
+				int iFinalDamage;
+				fImpulse[0] = fPlayerPosition[0] - fPosition[0];
+				fImpulse[1] = fPlayerPosition[1] - fPosition[1];
+				fImpulse[2] = fPlayerPosition[2] - fPosition[2];
+				NormalizeVector(fImpulse, fImpulse);
+				if (fImpulse[2] < 0.4) { fImpulse[2] = 0.4; NormalizeVector(fImpulse, fImpulse); }
+				
+				if (fDistanceToShockwave < g_RocketClass[class].exp_fallof)
+				{
+					fFinalPush = g_RocketClass[class].exp_push;
+					iFinalDamage = RoundFloat(g_RocketClass[class].exp_damage);
+				}
+				else
+				{
+					new Float:fImpact = (1.0 - ((fDistanceToShockwave - g_RocketClass[class].exp_fallof) / ( g_RocketClass[class].exp_radius - g_RocketClass[class].exp_fallof)));
+					fFinalPush   = fImpact * g_RocketClass[class].exp_push;
+					iFinalDamage = RoundToFloor(fImpact * g_RocketClass[class].exp_damage);
+				}
+				ScaleVector(fImpulse, fFinalPush);
+				SetEntPropVector(iClient, Prop_Data, "m_vecAbsVelocity", fImpulse);
+				
+				new Handle:hDamage = CreateDataPack();
+				WritePackCell(hDamage, iClient);
+				WritePackCell(hDamage, iFinalDamage);
+				CreateTimer(0.1, ApplyDamage, hDamage, TIMER_FLAG_NO_MAPCHANGE);
+			}
+		}
+	}
+	
+	EmitSoundAllDB(rsnd_exp,rIndex,false);
+}
+/* ApplyDamage()
+**
+** Applies a damage to a player.
+** -------------------------------------------------------------------------- */
+public Action:ApplyDamage(Handle:hTimer, any:hDataPack)
+{
+    ResetPack(hDataPack, false);
+    int  iClient = ReadPackCell(hDataPack);
+    int iDamage = ReadPackCell(hDataPack);
+    CloseHandle(hDataPack);
+    SlapPlayer(iClient, iDamage, true);
+}
+/* PlayParticle()
+**
+** Plays a particle system at the given location & angles.
+** -------------------------------------------------------------------------- */
+stock PlayParticle(Float:fPosition[3], Float:fAngles[3], String:strParticleName[], Float:fEffectTime = 5.0, Float:fLifeTime = 9.0)
+{
+    new iEntity = CreateEntityByName("info_particle_system");
+    if (iEntity && IsValidEdict(iEntity))
+    {
+        TeleportEntity(iEntity, fPosition, fAngles, NULL_VECTOR);
+        DispatchKeyValue(iEntity, "effect_name", strParticleName);
+        ActivateEntity(iEntity);
+        AcceptEntityInput(iEntity, "Start");
+        CreateTimer(fEffectTime, StopParticle, EntIndexToEntRef(iEntity));
+        CreateTimer(fLifeTime, KillParticle, EntIndexToEntRef(iEntity));
+    }
+    else
+    {
+        LogError("ShowParticle: could not create info_particle_system");
+    }    
+}
+/* StopParticle()
+**
+** Turns of the particle system. Automatically called by PlayParticle
+** -------------------------------------------------------------------------- */
+public Action:StopParticle(Handle:hTimer, any:iEntityRef)
+{
+    if (iEntityRef != INVALID_ENT_REFERENCE)
+    {
+        new iEntity = EntRefToEntIndex(iEntityRef);
+        if (iEntity && IsValidEntity(iEntity))
+        {
+            AcceptEntityInput(iEntity, "Stop");
+        }
+    }
+}
+
+/* KillParticle()
+**
+** Destroys the particle system. Automatically called by PlayParticle
+** -------------------------------------------------------------------------- */
+public Action:KillParticle(Handle:hTimer, any:iEntityRef)
+{
+    if (iEntityRef != INVALID_ENT_REFERENCE)
+    {
+        new iEntity = EntRefToEntIndex(iEntityRef);
+        if (iEntity && IsValidEntity(iEntity))
+        {
+            RemoveEdict(iEntity);
+        }
+    }
+}
+
+/* PrecacheParticle()
+**
+** Forces the client to precache a particle system.
+** -------------------------------------------------------------------------- */
+stock PrecacheParticle(String:strParticleName[])
+{
+    PlayParticle(Float:{0.0, 0.0, 0.0}, Float:{0.0, 0.0, 0.0}, strParticleName, 0.1, 0.1);
+}
+
+/* ClearHud()
+**
+** Clears the hud's synchronizers on game end.
+** -------------------------------------------------------------------------- */
+
+public void ClearHud()
+{
+	if(useMultiColor() || g_max_rockets == 1)
+		for( int c = 0; c < g_max_rockets; c++)
+			for(int client = 1; client <= MaxClients; client++)
+				if(IsClientInGame(client))
+					ClearSyncHud(client,g_HudSyncs[c]);
+}
+/* RenderHud()
+**
+** This will render the hud for 30 secs (called on start/rocket fired/ rocket deflected and rocket destroyed).
+** -------------------------------------------------------------------------- */
+public void RenderHud()
+{
+	if(!g_hud_show) return;
 	//Multi Color hud
 	if(useMultiColor())
 	{
+		int ncolor[3];
+		char strHud[PLATFORM_MAX_PATH];
 		for( int c = 0; c < g_max_rockets; c++)
 		{
-			char scolor[3][8];
-			int ncolor[3];
-			ExplodeString(g_mrc_color[c]," ",scolor,3,8);
-			for(int i = 0; i < 3; i++)
-				ncolor[i] = StringToInt(scolor[i]);
-					
-			SetHudTextParams(g_hud_x,g_hud_y+c*HUD_LINE_SEPARATION*2,0.2,ncolor[0],ncolor[1],ncolor[2],255, 0, 0.0, 0.0, 0.0);
-			char info[4][64]; // owner, target, speed, deflects
-			for(int i = 0; i < 4; i++)
-				info[i] = "-";
-			if( g_RocketEnt[c].entity > MaxClients)
-			{
-				if( g_RocketEnt[c].owner >= 0 && g_RocketEnt[c].owner <= MaxClients && IsClientInGame(g_RocketEnt[c].owner))
-				{
-					if( g_RocketEnt[c].owner == 0)
-						Format(info[0],64,"The server");
-					else
-						Format(info[0],64,"%N",g_RocketEnt[c].owner);
-				}
-				if( g_RocketEnt[c].target > 0 && g_RocketEnt[c].target <= MaxClients && IsClientInGame(g_RocketEnt[c].target))
-					Format(info[1],64,"%N",g_RocketEnt[c].target);
-				if( g_RocketEnt[c].speed >= 0)
-					Format(info[2],64,"%.1f",g_RocketEnt[c].speed);
-				if( g_RocketEnt[c].deflects >= 0)
-					Format(info[3],64,"%d",g_RocketEnt[c].deflects);
-			}
+			GetIntColor(g_mrc_color[c],ncolor);
+			SetHudTextParams(g_hud_x,g_hud_y+ c*2*HUD_LINE_SEPARATION,30.0,ncolor[0],ncolor[1],ncolor[2],255, 0, 0.0, 0.0, 0.0);
+			
+			GetHudString(strHud, PLATFORM_MAX_PATH, c, true);
+			
 			for(int client = 1; client <= MaxClients; client++)
-			if(IsClientInGame(client))
-				ShowSyncHudText(client, g_HudSyncs[c], "<- %s | D: %s \n-> %s | S: %s",info[0],info[3],info[1],info[2]);
+				if(IsClientInGame(client))
+					ShowSyncHudText(client, g_HudSyncs[c], "%s",strHud);
 		}
 	
 	}
 	//Just one rocket
-	
 	else if (g_max_rockets == 1)
 	{
-		char scolor[3][8];
 		int ncolor[3];
-		ExplodeString(g_hud_color," ",scolor,3,8);
-		for(int i = 0; i < 3; i++)
-			ncolor[i] = StringToInt(scolor[i]);
-				
-		SetHudTextParams(g_hud_x,g_hud_y,0.2,ncolor[0],ncolor[1],ncolor[2],255, 0, 0.0, 0.0, 0.0);
-		char info[4][64]; // owner, target, speed, deflects
-		for(int i = 0; i < 4; i++)
-			info[i] = "-";
-		if( g_RocketEnt[0].entity > MaxClients)
-		{
-			if( g_RocketEnt[0].owner >= 0 && g_RocketEnt[0].owner <= MaxClients && IsClientInGame(g_RocketEnt[0].owner))
-			{
-				if( g_RocketEnt[0].owner == 0)
-					Format(info[0],64,"The server");
-				else
-					Format(info[0],64,"%N",g_RocketEnt[0].owner);
-			}
-			if( g_RocketEnt[0].target > 0 && g_RocketEnt[0].target <= MaxClients && IsClientInGame(g_RocketEnt[0].target))
-				Format(info[1],64,"%N",g_RocketEnt[0].target);
-			if( g_RocketEnt[0].speed >= 0)
-				Format(info[2],64,"%.1f",g_RocketEnt[0].speed);
-			if( g_RocketEnt[0].deflects >= 0)
-				Format(info[3],64,"%d",g_RocketEnt[0].deflects);
+		char strHud[PLATFORM_MAX_PATH];
 		
-		}
+		GetIntColor(g_hud_color,ncolor);
+		SetHudTextParams(g_hud_x,g_hud_y,30.0,ncolor[0],ncolor[1],ncolor[2],255, 0, 0.0, 0.0, 0.0);
+		
+		GetHudString(strHud, PLATFORM_MAX_PATH, 1, false);
 		
 		for(int client = 1; client <= MaxClients; client++)
 			if(IsClientInGame(client))
-				ShowSyncHudText(client, g_HudSyncs[0], " Owner: %s \n Deflects: %s \n Target: %s \n Speed: %s",info[0],info[3],info[1],info[2]);
-		
-		/*
-		for(int client = 1; client <= MaxClients; client++)
-			if(IsClientInGame(client))
-				ShowSyncHudText(client, g_HudSyncs[0], "<- %s | D: %s \n-> %s | S: %s",info[0],info[3],info[1],info[2]);
-		SetHudTextParams(g_hud_x,g_hud_y+HUD_LINE_SEPARATION*2,0.2,ncolor[0],ncolor[1],ncolor[2],255, 0, 0.0, 0.0, 0.0);
-		for(int client = 1; client <= MaxClients; client++)
-			if(IsClientInGame(client))
-				ShowSyncHudText(client, g_HudSyncs[1], "<- %s | D: %s \n-> %s | S: %s",info[0],info[3],info[1],info[2]);
-		SetHudTextParams(g_hud_x,g_hud_y+HUD_LINE_SEPARATION*4,0.2,ncolor[0],ncolor[1],ncolor[2],255, 0, 0.0, 0.0, 0.0);
-		for(int client = 1; client <= MaxClients; client++)
-			if(IsClientInGame(client))
-				ShowSyncHudText(client, g_HudSyncs[2], "<- %s | D: %s \n-> %s | S: %s",info[0],info[3],info[1],info[2]);
-		SetHudTextParams(g_hud_x,g_hud_y+HUD_LINE_SEPARATION*6,0.2,ncolor[0],ncolor[1],ncolor[2],255, 0, 0.0, 0.0, 0.0);
-		for(int client = 1; client <= MaxClients; client++)
-			if(IsClientInGame(client))
-				ShowSyncHudText(client, g_HudSyncs[3], "<- %s | D: %s \n-> %s | S: %s",info[0],info[3],info[1],info[2]);
-		SetHudTextParams(g_hud_x,g_hud_y+HUD_LINE_SEPARATION*8,0.2,ncolor[0],ncolor[1],ncolor[2],255, 0, 0.0, 0.0, 0.0);
-		for(int client = 1; client <= MaxClients; client++)
-			if(IsClientInGame(client))
-				ShowSyncHudText(client, g_HudSyncs[4], "<- %s | D: %s \n-> %s | S: %s",info[0],info[3],info[1],info[2]);
-		*/
-	}
+				ShowSyncHudText(client, g_HudSyncs[0], "%s",strHud);
 	
+	}
+}
 
+void GetIntColor(char[] strColor, int buffer[3])
+{
+	char scolor[3][8];
+	ExplodeString(strColor," ",scolor,3,8);
+	for(int i = 0; i < 3; i++)
+		buffer[i] = StringToInt(scolor[i]);
+}
+
+void GetHudString(char[] strHud, int length, int rIndex, bool twoLines)
+{
+	char owner[MAX_NAME_LENGTH] = "-", target[MAX_NAME_LENGTH] = "-", speed[MAX_NAME_LENGTH] = "-",deflects[MAX_NAME_LENGTH] = "-";
+	if( g_RocketEnt[rIndex].entity > MaxClients)
+	{
+		if( g_RocketEnt[rIndex].owner >= 0 && g_RocketEnt[rIndex].owner <= MaxClients )
+		{
+			if( g_RocketEnt[rIndex].owner == 0)
+				Format(owner,MAX_NAME_LENGTH,"The server");
+			else
+				if(IsClientInGame(g_RocketEnt[rIndex].owner))
+					Format(owner,MAX_NAME_LENGTH,"%N",g_RocketEnt[rIndex].owner);
+		}
+		if( g_RocketEnt[rIndex].target > 0 && g_RocketEnt[rIndex].target <= MaxClients && IsClientInGame(g_RocketEnt[rIndex].target))
+			Format(target,MAX_NAME_LENGTH,"%N",g_RocketEnt[rIndex].target);
+		if( g_RocketEnt[rIndex].speed >= 0)
+			Format(speed,MAX_NAME_LENGTH,"%.1f",g_RocketEnt[rIndex].speed);
+		if( g_RocketEnt[rIndex].deflects >= 0)
+			Format(deflects,MAX_NAME_LENGTH,"%d",g_RocketEnt[rIndex].deflects);
+			
+	}
+	if(twoLines)
+		Format(strHud, length, "<- %s | Defs: %s \n-> %s | S: %s",owner,deflects,target,speed);
+	else
+		Format(strHud, length, " Owner: %s \n Target: %s \n Deflects: %s \n Speed: %s",owner,target,deflects,speed);
+	
 }
 
 bool useMultiColor()
@@ -1918,7 +2100,6 @@ bool useMultiColor()
 		return true;
 	return false;
 }
-
 
 
 /* OnConfigsExecuted()
@@ -1978,7 +2159,6 @@ public Action OnPlayerRunCmd(iClient, &iButtons, &iImpulse, Float:fVelocity[3], 
 }
 
 
-
 /* Command_Block()
 **
 ** Blocks a command
@@ -2002,6 +2182,123 @@ public Action Command_Block_PreparationOnly(client, const char[] command, int ar
 }
 
 
+/* EmitSoundClientDB()
+**
+** Emits a to a client checking if the sound is empty, using the rocket's sound enum.
+** -------------------------------------------------------------------------- */
+void EmitSoundClientDB(int client, int rocketsnd, int rIndex, bool fromEntity)
+{
+	if(!IsValidEntity(g_RocketEnt[rIndex].entity ))
+		return;
+	char strFile[PLATFORM_MAX_PATH]="";
+	GetSndString(strFile,PLATFORM_MAX_PATH,rIndex,rocketsnd);
+	
+	if(StrEqual(strFile, ""))
+		return;
+	if(fromEntity)
+		EmitSoundToClient(client,strFile, g_RocketEnt[rIndex].entity, _, SNDLEVEL_TRAIN,_,SOUND_ALERT_VOL);
+	else
+		EmitSoundToClient(client,strFile, _, _, SNDLEVEL_TRAIN,_,SOUND_ALERT_VOL);
+
+}
+/* EmitSoundAllDB()
+**
+** Emits a to everyone checking if the sound is empty, using the rocket's sound enum.
+** -------------------------------------------------------------------------- */
+void EmitSoundAllDB(int rocketsnd, int rIndex, bool fromEntity)
+{	
+	if(!IsValidEntity(g_RocketEnt[rIndex].entity ))
+		return;
+	char strFile[PLATFORM_MAX_PATH]="";
+	GetSndString(strFile,PLATFORM_MAX_PATH,rIndex,rocketsnd);
+	if(StrEqual(strFile, ""))
+		return;
+	if(fromEntity)
+		EmitSoundToAll(strFile, g_RocketEnt[rIndex].entity, _, SNDLEVEL_TRAIN,_,SOUND_ALERT_VOL);
+	else
+		EmitSoundToAll(strFile, _, _, SNDLEVEL_TRAIN,_,SOUND_ALERT_VOL);
+}
+
+/* GetSndString()
+**
+** Gets the sound string of the enum passed as argument.
+** -------------------------------------------------------------------------- */
+void GetSndString(char[] buffer, int length, int rIndex, int rocketsnd)
+{
+	Format(buffer, length, "");
+	int class = g_RocketEnt[rIndex].class;
+	if(rocketsnd == rsnd_spawn)
+	{
+		if(g_RocketClass[class].snd_spawn_use)
+			g_RocketClass[class].GetSndSpawn(buffer,length);
+	}
+	else if(rocketsnd == rsnd_alert)
+	{
+		if(g_RocketClass[class].snd_alert_use)
+			g_RocketClass[class].GetSndAlert(buffer,length);
+	}
+	else if(rocketsnd == rsnd_bludeflect)
+	{
+		if(g_RocketClass[class].snd_deflect_use)
+			g_RocketClass[class].GetSndDeflectBlue(buffer,length);
+	}
+	else if(rocketsnd == rsnd_reddeflect)
+	{
+		if(g_RocketClass[class].snd_deflect_use)
+			g_RocketClass[class].GetSndDeflectRed(buffer,length);
+	}
+	else if(rocketsnd == rsnd_beep)
+	{
+		if(g_RocketClass[class].snd_beep_use)
+			g_RocketClass[class].GetSndBeep(buffer,length);
+	}
+	else if(rocketsnd == rsnd_aimed)
+	{
+		if(g_RocketClass[class].snd_aimed_use)
+			g_RocketClass[class].GetSndAimed(buffer,length);
+	}
+	else if(rocketsnd == rsnd_bounce)
+	{
+		if(g_RocketClass[class].snd_bounce_use)
+			g_RocketClass[class].GetSndBounce(buffer,length);
+	}
+	else if(rocketsnd == rsnd_exp)
+	{
+		g_RocketClass[class].GetExpSound(buffer,length);
+	}
+}
+
+/* EmitRandomSound()
+**
+** Emits a random sound from a trie, it will be emitted for everyone is a client isn't passed.
+** -------------------------------------------------------------------------- */
+stock EmitRandomSound(StringMap sndTrie,client = -1)
+{
+	int trieSize = sndTrie.Size;
+	//LogMessage("Emitting sound from trie with %d sounds.",trieSize);
+	new String:key[4], String:sndFile[PLATFORM_MAX_PATH];
+	IntToString(GetRandomInt(1,trieSize),key,sizeof(key));
+
+	if(GetTrieString(sndTrie,key,sndFile,sizeof(sndFile)))
+	{
+		if(StrEqual(sndFile, ""))
+			return;
+			
+		if(client != -1)
+		{
+			if(client > 0 && client <= MaxClients && IsClientInGame(client) && !IsFakeClient(client))
+			{
+				EmitSoundToClient(client,sndFile,_,_, SNDLEVEL_TRAIN);
+			}
+			else
+				return;
+		}
+		else
+		{
+			EmitSoundToAll(sndFile, _, _, SNDLEVEL_TRAIN);
+		}
+	}
+}
 /* TF2_SwitchtoSlot()
 **
 ** Changes the client's slot to the desired one.
@@ -2039,67 +2336,12 @@ stock bool IsValidAliveClient(int client)
 			return false;
 	return true;
 }
-
-/* EmitSoundDBAll()
-**
-** Emits a to everyone checking if the sound is empty
-** -------------------------------------------------------------------------- */
-stock EmitSoundDBAll(char sndFile[PLATFORM_MAX_PATH])
-{
-	if(StrEqual(sndFile, ""))
-		return;
-	EmitSoundToAll(sndFile, _, _, SNDLEVEL_TRAIN);
-}
-/* EmitSoundDB()
-**
-** Emits a to everyone checking if the sound is empty
-** -------------------------------------------------------------------------- */
-stock EmitSoundDB(int client, char sndFile[PLATFORM_MAX_PATH])
-{
-	if(StrEqual(sndFile, ""))
-		return;
-	EmitSoundToClient(client,sndFile, _, _, SNDLEVEL_TRAIN);
-}
-
-/* EmitRandomSound()
-**
-** Emits a random sound from a trie, it will be emitted for everyone is a client isn't passed.
-** -------------------------------------------------------------------------- */
-stock EmitRandomSound(StringMap sndTrie,client = -1)
-{
-	int trieSize = sndTrie.Size;
-	//LogMessage("Emitting sound from trie with %d sounds.",trieSize);
-	new String:key[4], String:sndFile[PLATFORM_MAX_PATH];
-	IntToString(GetRandomInt(1,trieSize),key,sizeof(key));
-
-	if(GetTrieString(sndTrie,key,sndFile,sizeof(sndFile)))
-	{
-		if(StrEqual(sndFile, ""))
-			return;
-			
-		if(client != -1)
-		{
-			if(client > 0 && client <= MaxClients && IsClientInGame(client) && !IsFakeClient(client))
-			{
-				EmitSoundToClient(client,sndFile,_,_, SNDLEVEL_TRAIN);
-			}
-			else
-				return;
-		}
-		else
-		{
-			EmitSoundToAll(sndFile, _, _, SNDLEVEL_TRAIN);
-		}
-	}
-}
-
-
 /* GetAlivePlayersCount()
 **
 ** Get alive players of a team (ignoring one)
 ** -------------------------------------------------------------------------- */
 stock GetAlivePlayersCount(team,ignore=-1) 
-{ 
+{
 	new count = 0, i;
 
 	for( i = 1; i <= MaxClients; i++ ) 
@@ -2114,7 +2356,7 @@ stock GetAlivePlayersCount(team,ignore=-1)
 ** Get last player of a team (ignoring one), asuming that GetAlivePlayersCountwas used before.
 ** -------------------------------------------------------------------------- */
 stock GetLastPlayer(team,ignore=-1) 
-{ 
+{
 	for(new i = 1; i <= MaxClients; i++ ) 
 		if(IsClientInGame(i) && IsPlayerAlive(i) && GetClientTeam(i) == team && i != ignore) 
 			return i;
@@ -2169,18 +2411,18 @@ stock void CalculateDirectionToClient(int iEntity, int iClient, float fOut[3])
 ** -------------------------------------------------------------------------- */
 stock CleanString(String:strBuffer[])
 {
-    // Cleanup any illegal characters
-    new Length = strlen(strBuffer);
-    for (new iPos=0; iPos<Length; iPos++)
-    {
-        switch(strBuffer[iPos])
-        {
-            case '\r': strBuffer[iPos] = ' ';
-            case '\n': strBuffer[iPos] = ' ';
-            case '\t': strBuffer[iPos] = ' ';
-        }
-    }
-    
-    // Trim string
-    TrimString(strBuffer);
+	// Cleanup any illegal characters
+	new Length = strlen(strBuffer);
+	for (new iPos=0; iPos<Length; iPos++)
+	{
+		switch(strBuffer[iPos])
+		{
+			case '\r': strBuffer[iPos] = ' ';
+			case '\n': strBuffer[iPos] = ' ';
+			case '\t': strBuffer[iPos] = ' ';
+		}
+	}
+	
+	// Trim string
+	TrimString(strBuffer);
 }
