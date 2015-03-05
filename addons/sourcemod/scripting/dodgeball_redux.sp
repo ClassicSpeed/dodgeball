@@ -764,18 +764,18 @@ stock PrecacheModelEx(String:strFileName[], bool:bPreload=false, bool:bAddToDown
 	PrecacheModel(strFileName, bPreload);
 	if (bAddToDownloadTable)
 	{
-		decl String:strDepFileName[PLATFORM_MAX_PATH];
+		char strDepFileName[PLATFORM_MAX_PATH];
 		Format(strDepFileName, sizeof(strDepFileName), "%s.res", strFileName);
 		
 		if (FileExists(strDepFileName))
 		{
 			// Open stream, if possible
-			new Handle:hStream = OpenFile(strDepFileName, "r");
+			Handle hStream = OpenFile(strDepFileName, "r");
 			if (hStream == INVALID_HANDLE) {LogMessage("Error, can't read file containing model dependencies."); return; }
 			
 			while(!IsEndOfFile(hStream))
 			{
-				decl String:strBuffer[PLATFORM_MAX_PATH];
+				char strBuffer[PLATFORM_MAX_PATH];
 				ReadFileLine(hStream, strBuffer, sizeof(strBuffer));
 				CleanString(strBuffer);
 				
@@ -890,7 +890,7 @@ public Action OnRoundEnd(Handle event, const char[] name, bool dontBroadcast)
 	g_roundActive=false;
 	for(int i = 0; i < g_max_rockets; i++)
 	{
-		new index = EntRefToEntIndex(g_RocketEnt[i].entity);
+		int index = EntRefToEntIndex(g_RocketEnt[i].entity);
 		if (index != INVALID_ENT_REFERENCE)
 		{
 			int dissolver = CreateEntityByName("env_entity_dissolver");
@@ -1092,8 +1092,10 @@ public void SearchSpawns()
 			g_BlueSpawn = EntIndexToEntRef(iEntity);
 	}
 	
-	if (g_RedSpawn == -1) SetFailState("No RED spawn points found on this map.");
-	if (g_BlueSpawn == -1) SetFailState("No BLU spawn points found on this map.");
+	if (g_RedSpawn == INVALID_ENT_REFERENCE)
+		SetFailState("No RED spawn points found on this map.");
+	if (g_BlueSpawn == INVALID_ENT_REFERENCE)
+		SetFailState("No BLU spawn points found on this map.");
 	
 	
 	//ObserverPoint
@@ -1195,7 +1197,7 @@ public int GetRocketIndex(int entity)
 public int SearchTarget(int rIndex)
 {
 	if(!g_isDBmap) return -1;
-	new index = EntRefToEntIndex(g_RocketEnt[rIndex].entity);
+	int index = EntRefToEntIndex(g_RocketEnt[rIndex].entity);
 	if (index == INVALID_ENT_REFERENCE)
 		return -1;
 	if(!g_roundActive) return -1;
@@ -1208,7 +1210,7 @@ public int SearchTarget(int rIndex)
 		if(rOwner != 0)
 		{
 			int cAimed = GetClientAimTarget(rOwner, true);
-			if( cAimed > 0 && cAimed < MaxClients && IsPlayerAlive(cAimed) && GetClientTeam(cAimed) != rTeam )
+			if( IsValidAliveClient(cAimed) && GetClientTeam(cAimed) != rTeam )
 			{
 				g_RocketEnt[rIndex].aimed = true;
 				return cAimed;
@@ -1222,7 +1224,7 @@ public int SearchTarget(int rIndex)
 	int possibleNumber = 0;
 	for(int i = 1; i <= MaxClients ; i++)
 	{
-		if(!IsClientConnected(i) || !IsClientInGame(i) || !IsPlayerAlive(i) || GetClientTeam(i) == rTeam || g_ClientAimed[i] > 0)
+		if(!IsValidAliveClient(i) || GetClientTeam(i) == rTeam || g_ClientAimed[i] > 0)
 			continue;
 		possiblePlayers[possibleNumber] = i;
 		possibleNumber++;
@@ -1233,17 +1235,13 @@ public int SearchTarget(int rIndex)
 	{
 		for(int i = 1; i <= MaxClients ; i++)
 		{
-			if(!IsClientConnected(i) || !IsClientInGame(i) || !IsPlayerAlive(i) || GetClientTeam(i) == rTeam)
+			if(!IsValidAliveClient(i) || GetClientTeam(i) == rTeam)
 				continue;
 			possiblePlayers[possibleNumber] = i;
 			possibleNumber++;
 		}
 		if(possibleNumber == 0)
-		{
-			//if(g_roundActive)
-				//LogError("[DB] Tried to fire a rocket but there weren't any player available.");
 			return -1;
-		}
 	}
 	
 	//Random player
@@ -1439,7 +1437,7 @@ public void AttachTrail(int rIndex)
 	if (!IsValidEntity(trail)) 
 		return;
 
-	new String:strTargetName[MAX_NAME_LENGTH];
+	char strTargetName[MAX_NAME_LENGTH];
 	Format(strTargetName,sizeof(strTargetName),"projectile%d",index);
 	DispatchKeyValue(index, "targetname", strTargetName);
 	DispatchKeyValue(trail, "parentname", strTargetName);
@@ -1447,7 +1445,7 @@ public void AttachTrail(int rIndex)
 	DispatchKeyValueFloat(trail, "endwidth", 15.0);
 	DispatchKeyValueFloat(trail, "startwidth", 6.0);
 	
-	decl String:trailMaterial[PLATFORM_MAX_PATH];
+	char trailMaterial[PLATFORM_MAX_PATH];
 	if(colornum >= 0 && colornum < MAXMULTICOLORHUD)
 		Format(trailMaterial,PLATFORM_MAX_PATH,"%s.vmt",g_mrc_trail[colornum]);
 	else
@@ -1467,7 +1465,7 @@ public void AttachTrail(int rIndex)
 
 	DispatchSpawn(trail);
 
-	new Float:vec[3];
+	float vec[3];
 	GetEntPropVector(index, Prop_Data, "m_vecOrigin", vec);
 
 	TeleportEntity(trail, vec, NULL_VECTOR, NULL_VECTOR);
@@ -1488,7 +1486,7 @@ public void AttachLight(int rIndex)
 	if(!useMultiColor())
 		return;
 	colornum = rIndex;
-	new iLightEntity = CreateEntityByName("light_dynamic");
+	int iLightEntity = CreateEntityByName("light_dynamic");
 	if (IsValidEntity(iLightEntity))
 	{
 		DispatchKeyValue(iLightEntity, "inner_cone", "0");
@@ -1501,13 +1499,13 @@ public void AttachLight(int rIndex)
 		DispatchKeyValue(iLightEntity, "style", "5");
 		DispatchSpawn(iLightEntity);
 		
-		decl Float:fOrigin[3];
+		float fOrigin[3];
 		GetEntPropVector(index, Prop_Data, "m_vecOrigin", fOrigin);
 		
 		fOrigin[2] += 40.0;
 		TeleportEntity(iLightEntity, fOrigin, NULL_VECTOR, NULL_VECTOR);
 
-		decl String:strName[32];
+		char strName[32];
 		Format(strName, sizeof(strName), "target%i", index);
 		DispatchKeyValue(index, "targetname", strName);
 				
@@ -1840,8 +1838,9 @@ public CreateExplosion(rIndex)
 	{
 		if(IsValidAliveClient(iClient) && GetClientTeam(iClient) != iTeam)
 		{
-			decl Float:fPlayerPosition[3]; GetClientEyePosition(iClient, fPlayerPosition);
-			new Float:fDistanceToShockwave = GetVectorDistance(fPosition, fPlayerPosition);
+			float fPlayerPosition[3]; 
+			GetClientEyePosition(iClient, fPlayerPosition);
+			float fDistanceToShockwave = GetVectorDistance(fPosition, fPlayerPosition);
 			
 			if (fDistanceToShockwave < g_RocketClass[class].exp_radius)
 			{
@@ -1860,14 +1859,14 @@ public CreateExplosion(rIndex)
 				}
 				else
 				{
-					new Float:fImpact = (1.0 - ((fDistanceToShockwave - g_RocketClass[class].exp_fallof) / ( g_RocketClass[class].exp_radius - g_RocketClass[class].exp_fallof)));
+					float fImpact = (1.0 - ((fDistanceToShockwave - g_RocketClass[class].exp_fallof) / ( g_RocketClass[class].exp_radius - g_RocketClass[class].exp_fallof)));
 					fFinalPush   = fImpact * g_RocketClass[class].exp_push;
 					iFinalDamage = RoundToFloor(fImpact * g_RocketClass[class].exp_damage);
 				}
 				ScaleVector(fImpulse, fFinalPush);
 				SetEntPropVector(iClient, Prop_Data, "m_vecAbsVelocity", fImpulse);
 				
-				new Handle:hDamage = CreateDataPack();
+				Handle hDamage = CreateDataPack();
 				WritePackCell(hDamage, iClient);
 				WritePackCell(hDamage, iFinalDamage);
 				CreateTimer(0.1, ApplyDamage, hDamage, TIMER_FLAG_NO_MAPCHANGE);
@@ -1895,7 +1894,7 @@ public Action:ApplyDamage(Handle:hTimer, any:hDataPack)
 ** -------------------------------------------------------------------------- */
 stock PlayParticle(Float:fPosition[3], Float:fAngles[3], String:strParticleName[], Float:fEffectTime = 5.0, Float:fLifeTime = 9.0)
 {
-    new iEntity = CreateEntityByName("info_particle_system");
+    int iEntity = CreateEntityByName("info_particle_system");
     if (iEntity && IsValidEdict(iEntity))
     {
         TeleportEntity(iEntity, fPosition, fAngles, NULL_VECTOR);
@@ -1918,7 +1917,7 @@ public Action:StopParticle(Handle:hTimer, any:iEntityRef)
 {
     if (iEntityRef != INVALID_ENT_REFERENCE)
     {
-        new iEntity = EntRefToEntIndex(iEntityRef);
+        int iEntity = EntRefToEntIndex(iEntityRef);
         if (iEntity && IsValidEntity(iEntity))
         {
             AcceptEntityInput(iEntity, "Stop");
@@ -1934,7 +1933,7 @@ public Action:KillParticle(Handle:hTimer, any:iEntityRef)
 {
     if (iEntityRef != INVALID_ENT_REFERENCE)
     {
-        new iEntity = EntRefToEntIndex(iEntityRef);
+        int iEntity = EntRefToEntIndex(iEntityRef);
         if (iEntity && IsValidEntity(iEntity))
         {
             RemoveEdict(iEntity);
@@ -2139,7 +2138,7 @@ public Action Command_Block_PreparationOnly(client, const char[] command, int ar
 ** -------------------------------------------------------------------------- */
 void EmitSoundClientDB(int client, int rocketsnd, int rIndex, bool fromEntity)
 {
-	new index = EntRefToEntIndex(g_RocketEnt[rIndex].entity);
+	int index = EntRefToEntIndex(g_RocketEnt[rIndex].entity);
 	if (index == INVALID_ENT_REFERENCE)
 		return;
 	char strFile[PLATFORM_MAX_PATH]="";
@@ -2159,7 +2158,7 @@ void EmitSoundClientDB(int client, int rocketsnd, int rIndex, bool fromEntity)
 ** -------------------------------------------------------------------------- */
 void EmitSoundAllDB(int rocketsnd, int rIndex, bool fromEntity)
 {	
-	new index = EntRefToEntIndex(g_RocketEnt[rIndex].entity);
+	int index = EntRefToEntIndex(g_RocketEnt[rIndex].entity);
 	if (index == INVALID_ENT_REFERENCE)
 		return;
 	char strFile[PLATFORM_MAX_PATH]="";
@@ -2229,7 +2228,7 @@ stock EmitRandomSound(StringMap sndTrie,client = -1)
 {
 	int trieSize = sndTrie.Size;
 	//LogMessage("Emitting sound from trie with %d sounds.",trieSize);
-	new String:key[4], String:sndFile[PLATFORM_MAX_PATH];
+	char key[4], sndFile[PLATFORM_MAX_PATH];
 	IntToString(GetRandomInt(1,trieSize),key,sizeof(key));
 
 	if(GetTrieString(sndTrie,key,sndFile,sizeof(sndFile)))
@@ -2295,7 +2294,7 @@ stock bool IsValidAliveClient(int client)
 ** -------------------------------------------------------------------------- */
 stock GetAlivePlayersCount(team,ignore=-1) 
 {
-	new count = 0, i;
+	int count = 0, i;
 
 	for( i = 1; i <= MaxClients; i++ ) 
 		if(IsClientInGame(i) && IsPlayerAlive(i) && GetClientTeam(i) == team && i != ignore) 
@@ -2310,7 +2309,7 @@ stock GetAlivePlayersCount(team,ignore=-1)
 ** -------------------------------------------------------------------------- */
 stock GetLastPlayer(team,ignore=-1) 
 {
-	for(new i = 1; i <= MaxClients; i++ ) 
+	for(int i = 1; i <= MaxClients; i++ ) 
 		if(IsClientInGame(i) && IsPlayerAlive(i) && GetClientTeam(i) == team && i != ignore) 
 			return i;
 	return -1;
@@ -2365,8 +2364,8 @@ stock void CalculateDirectionToClient(int iEntity, int iClient, float fOut[3])
 stock CleanString(String:strBuffer[])
 {
 	// Cleanup any illegal characters
-	new Length = strlen(strBuffer);
-	for (new iPos=0; iPos<Length; iPos++)
+	int Length = strlen(strBuffer);
+	for (int iPos=0; iPos<Length; iPos++)
 	{
 		switch(strBuffer[iPos])
 		{
