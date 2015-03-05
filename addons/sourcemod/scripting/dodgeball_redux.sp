@@ -62,6 +62,7 @@ bool g_roundActive = false;
 bool g_canSpawn = false;
 bool g_canEmitKillSound = true;
 int g_lastSpawned;
+int g_max_rockets_dynamic;
 
 int g_BlueSpawn = -1;
 int g_RedSpawn = -1;
@@ -106,6 +107,7 @@ StringMap g_BlockOnlyOnPreparation;
 
 //Spawner
 int g_max_rockets;
+bool g_limit_rockets;
 float g_spawn_delay;
 StringMap g_class_chance;
 
@@ -474,6 +476,7 @@ void LoadConfigs()
 	if(kv.JumpToKey("spawner"))
 	{
 		g_max_rockets = kv.GetNum("MaxRockets", 2);
+		g_limit_rockets = !!kv.GetNum("LimitRockets",1);
 		g_spawn_delay = kv.GetFloat("SpawnDelay",2.0);
 		if(kv.JumpToKey("chances"))
 		{
@@ -512,7 +515,6 @@ void LoadConfigs()
 	kv.Rewind();
 	if(kv.JumpToKey("sounds"))
 	{
-		//LogMessage("Parsin' sounds.");
 		char key[4], sndFile[PLATFORM_MAX_PATH];
 		if(kv.JumpToKey("RoundStart"))
 		{
@@ -523,7 +525,6 @@ void LoadConfigs()
 				if(StrEqual(sndFile, ""))
 					break;			
 				g_SndRoundStart.SetString(key,sndFile);
-				//LogMessage("Parsin' sounds on start (%s)",key);
 			}
 			kv.GoBack();
 		}
@@ -624,6 +625,7 @@ void LoadConfigs()
 		if(kv.JumpToKey("spawner"))
 		{
 			g_max_rockets = kv.GetNum("MaxRockets", g_max_rockets);
+			g_limit_rockets = !!kv.GetNum("LimitRockets",g_limit_rockets);
 			g_spawn_delay = kv.GetFloat("SpawnDelay", g_spawn_delay);
 			if(kv.JumpToKey("chances"))
 			{
@@ -875,6 +877,19 @@ public Action OnRoundStart(Handle event, const char[] name, bool dontBroadcast)
 	g_onPreparation = false;
 	g_roundActive = true;
 	g_canSpawn = true;
+	g_max_rockets_dynamic = g_max_rockets;
+	if(g_limit_rockets)
+	{
+		//Here we get the alive player count for each team and we set the maxium rockets to the lower number.
+		int AliveCount = GetAlivePlayersCount(TEAM_RED,-1);
+		if(g_max_rockets_dynamic > AliveCount)
+			g_max_rockets_dynamic = AliveCount;
+			
+		AliveCount = GetAlivePlayersCount(TEAM_BLUE,-1);
+		if(g_max_rockets_dynamic > AliveCount)
+			g_max_rockets_dynamic = AliveCount;
+	}
+
 	g_lastSpawned = GetRandomInt(2,3);
 	FireRocket();
 
@@ -1060,9 +1075,19 @@ public Action:OnPlayerDeath(Handle:event, const String:name[], bool:dontBroadcas
 		if(g_RocketClass[class].exp_use)
 			CreateExplosion(rIndex);
 	}
-	
-	
-
+	if(g_limit_rockets)
+	{
+		if(aliveTeammates < g_max_rockets_dynamic)
+		{
+			ClearHud();
+			g_max_rockets_dynamic--;
+			if(g_RocketEnt[g_max_rockets_dynamic].entity != INVALID_ENT_REFERENCE)
+				MoveRocketSlot(g_max_rockets_dynamic);
+				
+			
+		}
+	}
+	 
 }
 
 public Action ReenableKillSound(Handle timer, int data)
@@ -1169,7 +1194,8 @@ public int GetRandomRocketClass()
 public int GetRocketSlot()
 {
 	int index;
-	for(int i = 0; i < g_max_rockets; i++)
+	//for(int i = 0; i < g_max_rockets; i++)
+	for(int i = 0; i < g_max_rockets_dynamic; i++)
 	{
 		index = EntRefToEntIndex(g_RocketEnt[i].entity);
 		if (index == INVALID_ENT_REFERENCE)
@@ -1188,6 +1214,62 @@ public int GetRocketIndex(int entity)
 		if(g_RocketEnt[i].entity == entity)
 			return i;
 	return -1;
+}
+
+/* MoveRocketSlot()
+**
+** Copye the info on a slot, to another with a lower index, if it can't find one, it destroys the rocket
+** -------------------------------------------------------------------------- */
+public void MoveRocketSlot(oldSlot)
+{
+	int newSlot = GetRocketSlot();
+	int index = EntRefToEntIndex(g_RocketEnt[oldSlot].entity);
+	
+	if(newSlot == -1 && index != INVALID_ENT_REFERENCE)
+	{
+		int dissolver = CreateEntityByName("env_entity_dissolver");
+
+		if (dissolver == -1)  return;
+		
+		DispatchKeyValue(dissolver, "dissolvetype", "0");
+		DispatchKeyValue(dissolver, "magnitude", "1");
+		DispatchKeyValue(dissolver, "target", "!activator");
+
+		AcceptEntityInput(dissolver, "Dissolve", index);
+		AcceptEntityInput(dissolver, "Kill");
+	
+	}
+	else
+	{
+		g_RocketEnt[newSlot].entity = g_RocketEnt[oldSlot].entity;
+		g_RocketEnt[newSlot].class = g_RocketEnt[oldSlot].class;
+		g_RocketEnt[newSlot].bounces = g_RocketEnt[oldSlot].bounces;
+		g_RocketEnt[newSlot].target = g_RocketEnt[oldSlot].target;
+		g_RocketEnt[newSlot].owner = g_RocketEnt[oldSlot].owner ;
+		g_RocketEnt[newSlot].aimed = g_RocketEnt[oldSlot].aimed;
+		g_RocketEnt[newSlot].deflects = g_RocketEnt[oldSlot].deflects;
+		g_RocketEnt[newSlot].speed = g_RocketEnt[oldSlot].speed;
+		g_RocketEnt[newSlot].observer = g_RocketEnt[oldSlot].observer;
+		g_RocketEnt[newSlot].homing = g_RocketEnt[oldSlot].homing;
+		g_RocketEnt[newSlot].beeptimer = g_RocketEnt[oldSlot].beeptimer;
+		float auxVec[3];
+		g_RocketEnt[oldSlot].GetDirection(auxVec);
+		g_RocketEnt[newSlot].SetDirection(auxVec);
+		
+		g_RocketEnt[oldSlot].entity = INVALID_ENT_REFERENCE;
+		g_RocketEnt[oldSlot].class = -1;
+		g_RocketEnt[oldSlot].bounces = 0;
+		g_RocketEnt[oldSlot].target = -1;
+		g_RocketEnt[oldSlot].owner = -1;
+		g_RocketEnt[oldSlot].aimed = false;
+		g_RocketEnt[oldSlot].deflects = 0;
+		g_RocketEnt[oldSlot].speed = 0.0;
+		g_RocketEnt[oldSlot].observer = -1;
+		g_RocketEnt[oldSlot].homing = true;
+		g_RocketEnt[oldSlot].beeptimer = null;
+	
+	}
+	
 }
 
 /* SearchTarget()
@@ -1310,7 +1392,6 @@ public void FireRocket()
 	if(!g_canSpawn) return;
 	if(!g_roundActive) return;
 	int rIndex = GetRocketSlot();
-	LogMessage("Going to spawn the rocket slot %d).",rIndex);
 	if(rIndex == -1) return;
 	
 	int spawner, rocketTeam;
@@ -1334,6 +1415,7 @@ public void FireRocket()
 		g_RocketEnt[rIndex].bounces = 0;
 		g_RocketEnt[rIndex].aimed = false;
 		g_RocketEnt[rIndex].deflects = 0;
+		g_RocketEnt[rIndex].speed = 0.0;
 		g_RocketEnt[rIndex].observer = -1;
 		g_RocketEnt[rIndex].homing = true;
 		g_RocketEnt[rIndex].beeptimer = null;
@@ -1419,7 +1501,6 @@ public void FireRocket()
 		g_canSpawn = false;
 		RenderHud();
 		CreateTimer(g_spawn_delay,AllowSpawn);
-		LogMessage("Fired in the rocket slot %d).",rIndex);
 		
 	}
 }
@@ -1536,7 +1617,11 @@ public Action OnStartTouch(int entity, int other)
 	if (other > 0 && other <= MaxClients)
 		return Plugin_Continue;
 		
-	int rIndex = GetRocketIndex(entity);
+	int ref = EntIndexToEntRef(entity);	
+	int rIndex = GetRocketIndex(ref);
+	if(rIndex == -1)
+		return Plugin_Continue;
+	
 	int class = g_RocketEnt[rIndex].class;	
 	//We check the bounce counter
 	if (g_RocketEnt[rIndex].bounces >= g_RocketClass[class].maxbounce)
@@ -1591,7 +1676,10 @@ public Action OnTouch(int entity, int other)
 	TeleportEntity(entity, NULL_VECTOR, vNewAngles, vBounceVec);
 
 	
-	int rIndex = GetRocketIndex(entity);
+	int ref = EntIndexToEntRef(entity);	
+	int rIndex = GetRocketIndex(ref);
+	if(rIndex == -1)
+		return Plugin_Continue;
 	int class = g_RocketEnt[rIndex].class;	
 	g_RocketEnt[rIndex].bounces++;
 	g_RocketEnt[rIndex].homing = false;
@@ -1975,7 +2063,7 @@ public void RenderHud()
 	{
 		int ncolor[3];
 		char strHud[PLATFORM_MAX_PATH];
-		for( int c = 0; c < g_max_rockets; c++)
+		for( int c = 0; c < g_max_rockets_dynamic; c++)
 		{
 			GetIntColor(g_mrc_color[c],ncolor);
 			SetHudTextParams(g_hud_x,g_hud_y+ c*2*HUD_LINE_SEPARATION,30.0,ncolor[0],ncolor[1],ncolor[2],255, 0, 0.0, 0.0, 0.0);
@@ -2227,7 +2315,6 @@ void GetSndString(char[] buffer, int length, int rIndex, int rocketsnd)
 stock EmitRandomSound(StringMap sndTrie,client = -1)
 {
 	int trieSize = sndTrie.Size;
-	//LogMessage("Emitting sound from trie with %d sounds.",trieSize);
 	char key[4], sndFile[PLATFORM_MAX_PATH];
 	IntToString(GetRandomInt(1,trieSize),key,sizeof(key));
 
