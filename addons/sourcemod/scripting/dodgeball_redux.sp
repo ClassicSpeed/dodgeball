@@ -1227,6 +1227,9 @@ public void MoveRocketSlot(oldSlot)
 	
 	if(newSlot == -1 && index != INVALID_ENT_REFERENCE)
 	{
+		int target = g_RocketEnt[oldSlot].target;
+		if(IsValidAliveClient(target))
+			g_ClientAimed[target]--;
 		int dissolver = CreateEntityByName("env_entity_dissolver");
 
 		if (dissolver == -1)  return;
@@ -1251,10 +1254,13 @@ public void MoveRocketSlot(oldSlot)
 		g_RocketEnt[newSlot].speed = g_RocketEnt[oldSlot].speed;
 		g_RocketEnt[newSlot].observer = g_RocketEnt[oldSlot].observer;
 		g_RocketEnt[newSlot].homing = g_RocketEnt[oldSlot].homing;
-		g_RocketEnt[newSlot].beeptimer = g_RocketEnt[oldSlot].beeptimer;
 		float auxVec[3];
 		g_RocketEnt[oldSlot].GetDirection(auxVec);
 		g_RocketEnt[newSlot].SetDirection(auxVec);
+		
+		int class = g_RocketEnt[newSlot].class;
+		if(g_RocketClass[class].snd_beep_use)
+			g_RocketEnt[newSlot].beeptimer = CreateTimer(g_RocketClass[class].snd_beep_delay,RocketBeep,newSlot,TIMER_REPEAT);
 		
 		g_RocketEnt[oldSlot].entity = INVALID_ENT_REFERENCE;
 		g_RocketEnt[oldSlot].class = -1;
@@ -1266,6 +1272,8 @@ public void MoveRocketSlot(oldSlot)
 		g_RocketEnt[oldSlot].speed = 0.0;
 		g_RocketEnt[oldSlot].observer = -1;
 		g_RocketEnt[oldSlot].homing = true;
+		if(g_RocketEnt[oldSlot].beeptimer != null)
+			CloseHandle(g_RocketEnt[oldSlot].beeptimer);
 		g_RocketEnt[oldSlot].beeptimer = null;
 	
 	}
@@ -1851,7 +1859,7 @@ public OnEntityCreated(entity, const String:classname[])
 public OnEntityDestroyed(entity)
 {
 	if(!g_isDBmap) return;
-	
+	if(!IsValidEntity(entity)) return;
 	int rIndex = GetRocketIndex(EntIndexToEntRef(entity));
 	if(rIndex == -1) return;
 	
@@ -1865,7 +1873,9 @@ public OnEntityDestroyed(entity)
 	g_RocketEnt[rIndex].speed = -1.0;
 	g_RocketEnt[rIndex].aimed = false;
 	g_RocketEnt[rIndex].homing = false;
-	CloseHandle (g_RocketEnt[rIndex].beeptimer);
+	if(g_RocketEnt[rIndex].beeptimer != null)
+		CloseHandle (g_RocketEnt[rIndex].beeptimer);
+	g_RocketEnt[rIndex].beeptimer = null;
 	RenderHud();
 	if(g_roundActive)
 	{
