@@ -88,6 +88,7 @@ char g_mrc_color[MAXMULTICOLORHUD][32];
 char g_mrc_trail[MAXMULTICOLORHUD][PLATFORM_MAX_PATH];
 bool g_mrc_applycolor_model[MAXMULTICOLORHUD];
 bool g_mrc_applycolor_trail[MAXMULTICOLORHUD];
+bool g_mrc_use_light[MAXMULTICOLORHUD];
 
 //Sound-config
 StringMap g_SndRoundStart;
@@ -176,6 +177,7 @@ public void OnPluginStart()
 	HookEvent("teamplay_round_win", OnRoundEnd);
 	HookEvent("teamplay_round_stalemate", OnRoundEnd);
 	
+	//Constant file paths
 	BuildPath(Path_SM, g_mainfile, PLATFORM_MAX_PATH, "data/dodgeball/dodgeball.cfg");
 	BuildPath(Path_SM, g_rocketclasses, PLATFORM_MAX_PATH, "data/dodgeball/rocketclasses.cfg");
 }
@@ -221,13 +223,7 @@ public void OnMapEnd()
 	g_roundActive = false;
 	for(int i = 0; i < MAXROCKETS; i++)
 	{
-		new index = EntRefToEntIndex(g_RocketEnt[i].entity);
-		if (index != INVALID_ENT_REFERENCE)
-		{
-			AcceptEntityInput(index, "Kill");
-			g_RocketEnt[i].entity = INVALID_ENT_REFERENCE;
-			return;
-		}
+		g_RocketEnt[i].entity = INVALID_ENT_REFERENCE;
 	}
 	ResetCvars();
 }
@@ -505,6 +501,7 @@ void LoadConfigs()
 			kv.GetString("trail",g_mrc_trail[count],PLATFORM_MAX_PATH,"");
 			g_mrc_applycolor_model[count] = !!kv.GetNum("applycolormodel", 1);
 			g_mrc_applycolor_trail[count] = !!kv.GetNum("applycolortrail", 1);
+			g_mrc_use_light[count] = !!kv.GetNum("uselight", 1);
 			count++;
 		}
 		while (kv.GotoNextKey() && count < MAXMULTICOLORHUD);
@@ -1179,6 +1176,10 @@ public int GetRocketSlot()
 	return -1;
 }
 
+/* GetRocketIndex()
+**
+** Gets the rocket index from a entity reference
+** -------------------------------------------------------------------------- */
 public int GetRocketIndex(int entity)
 {
 	for(int i = 0; i < g_max_rockets; i++)
@@ -1186,6 +1187,7 @@ public int GetRocketIndex(int entity)
 			return i;
 	return -1;
 }
+
 /* SearchTarget()
 **
 ** Searchs for a new Target
@@ -1377,7 +1379,8 @@ public void FireRocket()
 				AttachTrail(rIndex);
 			if(g_mrc_applycolor_model[rIndex])
 				DispatchKeyValue(iEntity, "rendercolor", g_mrc_color[rIndex]);
-			AttachLight(rIndex);
+			if(g_mrc_use_light[rIndex])
+				AttachLight(rIndex);
 		}
 		else 
 		{
