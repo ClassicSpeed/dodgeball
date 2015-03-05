@@ -1069,9 +1069,10 @@ public Action:OnPlayerDeath(Handle:event, const String:name[], bool:dontBroadcas
 		EmitRandomSound(g_SndLastAlive,GetLastPlayer(GetClientTeam(client),client));
 	
 	int iInflictor = GetEventInt(event, "inflictor_entindex");
-	int rIndex = GetRocketIndex(iInflictor);
+	int rIndex = GetRocketIndex(EntIndexToEntRef(iInflictor));
 	if(rIndex >= 0)
-	{	int class = g_RocketEnt[rIndex].class;
+	{	
+		int class = g_RocketEnt[rIndex].class;
 		if(g_RocketClass[class].exp_use)
 			CreateExplosion(rIndex);
 	}
