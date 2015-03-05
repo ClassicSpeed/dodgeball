@@ -849,7 +849,7 @@ public Action OnPrepartionStart(Handle event, const char[] name, bool dontBroadc
 
 	//Players shouldn't move until the round starts
 	for(int i = 1; i <= MaxClients; i++)
-		if(IsClientInGame(i) && IsPlayerAlive(i))
+		if(IsValidAliveClient(i))
 			SetEntityMoveType(i, MOVETYPE_NONE);	
 			
 	EmitRandomSound(g_SndRoundStart);
@@ -867,7 +867,7 @@ public Action OnRoundStart(Handle event, const char[] name, bool dontBroadcast)
 	SearchSpawns();
 	RenderHud();
 	for(int i = 1; i <= MaxClients; i++)
-		if(IsClientInGame(i) && IsPlayerAlive(i))
+		if(IsValidAliveClient(i))
 		{
 			SetEntityMoveType(i, MOVETYPE_WALK);
 			g_ClientAimed[i] = 0;
@@ -1618,7 +1618,7 @@ public void OnGameFrame()
 	if(!g_isDBmap) return;
 	for(int i = 1; i <= MaxClients; i++)
 	{
-		if(IsClientInGame(i) && IsPlayerAlive(i))
+		if(IsValidAliveClient(i))
 		{
 			SetEntPropFloat(i, Prop_Send, "m_flMaxspeed", g_player_speed);
 			if(TF2_GetPlayerClass(i) == TFClass_Spy)
@@ -1960,7 +1960,7 @@ public void ClearHud()
 	if(useMultiColor() || g_max_rockets == 1)
 		for( int c = 0; c < g_max_rockets; c++)
 			for(int client = 1; client <= MaxClients; client++)
-				if(IsClientInGame(client))
+				if(IsValidAliveClient(client))
 					ClearSyncHud(client,g_HudSyncs[c]);
 }
 /* RenderHud()
@@ -1983,7 +1983,7 @@ public void RenderHud()
 			GetHudString(strHud, PLATFORM_MAX_PATH, c, true);
 			
 			for(int client = 1; client <= MaxClients; client++)
-				if(IsClientInGame(client))
+				if(IsValidClient(client))
 					ShowSyncHudText(client, g_HudSyncs[c], "%s",strHud);
 		}
 	
@@ -2000,7 +2000,7 @@ public void RenderHud()
 		GetHudString(strHud, PLATFORM_MAX_PATH, 1, false);
 		
 		for(int client = 1; client <= MaxClients; client++)
-			if(IsClientInGame(client))
+			if(IsValidClient(client))
 				ShowSyncHudText(client, g_HudSyncs[0], "%s",strHud);
 	
 	}
@@ -2026,10 +2026,10 @@ void GetHudString(char[] strHud, int length, int rIndex, bool twoLines)
 			if( g_RocketEnt[rIndex].owner == 0)
 				Format(owner,MAX_NAME_LENGTH,"The server");
 			else
-				if(IsClientInGame(g_RocketEnt[rIndex].owner))
+				if(IsValidClient(g_RocketEnt[rIndex].owner))
 					Format(owner,MAX_NAME_LENGTH,"%N",g_RocketEnt[rIndex].owner);
 		}
-		if( g_RocketEnt[rIndex].target > 0 && g_RocketEnt[rIndex].target <= MaxClients && IsClientInGame(g_RocketEnt[rIndex].target))
+		if(IsValidClient(g_RocketEnt[rIndex].target))
 			Format(target,MAX_NAME_LENGTH,"%N",g_RocketEnt[rIndex].target);
 		if( g_RocketEnt[rIndex].speed >= 0)
 			Format(speed,MAX_NAME_LENGTH,"%.1f",g_RocketEnt[rIndex].speed);
@@ -2238,7 +2238,7 @@ stock EmitRandomSound(StringMap sndTrie,client = -1)
 			
 		if(client != -1)
 		{
-			if(client > 0 && client <= MaxClients && IsClientInGame(client) && !IsFakeClient(client))
+			if(IsValidClient(client))
 			{
 				EmitSoundToClient(client,sndFile,_,_, SNDLEVEL_TRAIN);
 			}
@@ -2257,7 +2257,7 @@ stock EmitRandomSound(StringMap sndTrie,client = -1)
 ** -------------------------------------------------------------------------- */
 stock void TF2_SwitchtoSlot(int client, int slot)
 {
-	if (slot >= 0 && slot <= 5 && IsClientInGame(client) && IsPlayerAlive(client))
+	if (slot >= 0 && slot <= 5 && IsValidAliveClient(client))
 	{
 		char classname[64];
 		int wep = GetPlayerWeaponSlot(client, slot);
@@ -2288,6 +2288,17 @@ stock bool IsValidAliveClient(int client)
 			return false;
 	return true;
 }
+
+/* IsValidClient()
+**
+** Check if the client is valid and alive/ingame
+** -------------------------------------------------------------------------- */
+stock bool IsValidClient(int client)
+{
+	if(client < 0 || client > MaxClients || !IsClientConnected(client) ||	!IsClientInGame(client) )
+			return false;
+	return true;
+}
 /* GetAlivePlayersCount()
 **
 ** Get alive players of a team (ignoring one)
@@ -2297,7 +2308,7 @@ stock GetAlivePlayersCount(team,ignore=-1)
 	int count = 0, i;
 
 	for( i = 1; i <= MaxClients; i++ ) 
-		if(IsClientInGame(i) && IsPlayerAlive(i) && GetClientTeam(i) == team && i != ignore) 
+		if(IsValidAliveClient(i) && GetClientTeam(i) == team && i != ignore) 
 			count++; 
 
 	return count; 
@@ -2310,7 +2321,7 @@ stock GetAlivePlayersCount(team,ignore=-1)
 stock GetLastPlayer(team,ignore=-1) 
 {
 	for(int i = 1; i <= MaxClients; i++ ) 
-		if(IsClientInGame(i) && IsPlayerAlive(i) && GetClientTeam(i) == team && i != ignore) 
+		if(IsValidAliveClient(i) && GetClientTeam(i) == team && i != ignore) 
 			return i;
 	return -1;
 }  
