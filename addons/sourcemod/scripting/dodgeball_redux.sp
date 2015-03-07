@@ -59,6 +59,7 @@ enum
 bool g_isDBmap = false;
 bool g_onPreparation = false;
 bool g_roundActive = false;
+bool g_reloadConfig = false;
 bool g_canSpawn = false;
 bool g_canEmitKillSound = true;
 int g_lastSpawned;
@@ -66,7 +67,7 @@ int g_max_rockets_dynamic;
 
 int g_BlueSpawn = -1;
 int g_RedSpawn = -1;
-int g_ClientAimed[MAXPLAYERS+1];
+//int g_ClientAimed[MAXPLAYERS+1];
 Handle g_HudSyncs[MAXHUDNUMBER];
 char g_mainfile[PLATFORM_MAX_PATH];
 char g_rocketclasses[PLATFORM_MAX_PATH];
@@ -144,6 +145,9 @@ public void OnPluginStart()
 	//Cvars
 	CreateConVar("sm_db_version", DB_VERSION, "Dogdeball Redux Version.", FCVAR_REPLICATED | FCVAR_PLUGIN | FCVAR_SPONLY | FCVAR_DONTRECORD | FCVAR_NOTIFY);
 	
+	//Commands
+	RegAdminCmd("sm_reloaddb", Command_ReloadConfig, ADMFLAG_ROOT ,"Reload the dodgeball's configs on round end.");
+	
 	//Creation of Tries
 	g_SndRoundStart = CreateTrie();
 	g_SndOnDeath = CreateTrie();
@@ -180,8 +184,8 @@ public void OnPluginStart()
 	HookEvent("teamplay_round_stalemate", OnRoundEnd);
 	
 	//Constant file paths
-	BuildPath(Path_SM, g_mainfile, PLATFORM_MAX_PATH, "data/dodgeball/dodgeball.cfg");
-	BuildPath(Path_SM, g_rocketclasses, PLATFORM_MAX_PATH, "data/dodgeball/rocketclasses.cfg");
+	BuildPath(Path_SM, g_mainfile, PLATFORM_MAX_PATH, "configs/dodgeball_redux/dodgeball.cfg");
+	BuildPath(Path_SM, g_rocketclasses, PLATFORM_MAX_PATH, "configs/dodgeball_redux/rocketclasses.cfg");
 }
 
 /* OnMapStart()
@@ -197,6 +201,7 @@ public void OnMapStart()
 	{
 		LogMessage("[DB] Dodgeball map detected. Enabling Dodgeball Gamemode.");
 		g_isDBmap = true;
+		g_reloadConfig = false;
 		Steam_SetGameDescription("Dodgeball Redux");
 		AddServerTag("dodgeball");
 		
@@ -223,6 +228,7 @@ public void OnMapStart()
 public void OnMapEnd()
 {
 	g_roundActive = false;
+	g_isDBmap = false;
 	for(int i = 0; i < MAXROCKETS; i++)
 	{
 		g_RocketEnt[i].entity = INVALID_ENT_REFERENCE;
@@ -230,6 +236,16 @@ public void OnMapEnd()
 	ResetCvars();
 }
 
+
+
+public Action Command_ReloadConfig(client,args)
+{
+	g_reloadConfig = true;
+	ReplyToCommand(client,"[DB] Dodgeball's configuration will be reloaded on the next round.");
+	return Plugin_Continue;
+}
+	
+	
 /* LoadRocketClasses()
 **
 ** Here we parse data/dodgeball/rocketclasses.cfg
@@ -611,7 +627,7 @@ void LoadConfigs()
 	
 	char mapfile[PLATFORM_MAX_PATH], mapname[128];
 	GetCurrentMap(mapname, sizeof(mapname));
-	BuildPath(Path_SM, mapfile, sizeof(mapfile), "data/dodgeball/maps/%s.cfg",mapname);
+	BuildPath(Path_SM, mapfile, sizeof(mapfile), "configs/dodgeball_redux/maps/%s.cfg",mapname);
 	
 	if(FileExists(mapfile))
 	{
@@ -872,7 +888,7 @@ public Action OnRoundStart(Handle event, const char[] name, bool dontBroadcast)
 		if(IsValidAliveClient(i))
 		{
 			SetEntityMoveType(i, MOVETYPE_WALK);
-			g_ClientAimed[i] = 0;
+			//g_ClientAimed[i] = 0;
 		}
 	g_onPreparation = false;
 	g_roundActive = true;
@@ -912,8 +928,8 @@ public Action OnRoundEnd(Handle event, const char[] name, bool dontBroadcast)
 
 			if (dissolver == -1)  return;
 			
-			DispatchKeyValue(dissolver, "dissolvetype", "0");
-			DispatchKeyValue(dissolver, "magnitude", "1");
+			DispatchKeyValue(dissolver, "dissolvetype", "3");
+			DispatchKeyValue(dissolver, "magnitude", "250");
 			DispatchKeyValue(dissolver, "target", "!activator");
 
 			AcceptEntityInput(dissolver, "Dissolve", index);
@@ -921,11 +937,14 @@ public Action OnRoundEnd(Handle event, const char[] name, bool dontBroadcast)
 		}
 	}
 	ClearHud();
-	/*if(g_RocketEnt != -1)
+	
+	if(g_reloadConfig)
 	{
-		if (IsValidEntity(g_RocketEnt)) 
-			RemoveEdict(g_RocketEnt);
-	}*/
+		LoadRocketClasses();
+		LoadConfigs();
+		ProcessListeners(false);
+		g_reloadConfig = false;
+	}
 }
 
 /* TF2Items_OnGiveNamedItem_Post()
@@ -1228,15 +1247,15 @@ public void MoveRocketSlot(oldSlot)
 	
 	if(newSlot == -1 && index != INVALID_ENT_REFERENCE)
 	{
-		int target = g_RocketEnt[oldSlot].target;
-		if(IsValidAliveClient(target))
-			g_ClientAimed[target]--;
+		//int target = g_RocketEnt[oldSlot].target;
+		//if(IsValidAliveClient(target))
+		//	g_ClientAimed[target]--;
 		int dissolver = CreateEntityByName("env_entity_dissolver");
 
 		if (dissolver == -1)  return;
 		
-		DispatchKeyValue(dissolver, "dissolvetype", "0");
-		DispatchKeyValue(dissolver, "magnitude", "1");
+		DispatchKeyValue(dissolver, "dissolvetype", "3");
+		DispatchKeyValue(dissolver, "magnitude", "250");
 		DispatchKeyValue(dissolver, "target", "!activator");
 
 		AcceptEntityInput(dissolver, "Dissolve", index);
@@ -1288,10 +1307,12 @@ public void MoveRocketSlot(oldSlot)
 public int SearchTarget(int rIndex)
 {
 	if(!g_isDBmap) return -1;
-	int index = EntRefToEntIndex(g_RocketEnt[rIndex].entity);
+	if(!g_roundActive) return -1;
+	
+	int index = g_RocketEnt[rIndex].entity;
 	if (index == INVALID_ENT_REFERENCE)
 		return -1;
-	if(!g_roundActive) return -1;
+		
 	int rTeam = GetEntProp(index, Prop_Send, "m_iTeamNum", 1);
 	int class = g_RocketEnt[rIndex].class;
 	//Check by aim
@@ -1309,13 +1330,22 @@ public int SearchTarget(int rIndex)
 		}
 	}
 	g_RocketEnt[rIndex].aimed = false;
+	int auxClient, clientTargeted[MAXPLAYERS+1];
+	for(int i = 0; i < g_max_rockets_dynamic; i++)
+	{
+		auxClient = g_RocketEnt[i].target;
+		if(IsValidAliveClient(auxClient))
+		{
+			clientTargeted[auxClient]++;
+		}
+	}
 	
 	//We make a list of possibles players
 	int possiblePlayers[MAXPLAYERS+1];
 	int possibleNumber = 0;
 	for(int i = 1; i <= MaxClients ; i++)
 	{
-		if(!IsValidAliveClient(i) || GetClientTeam(i) == rTeam || g_ClientAimed[i] > 0)
+		if(!IsValidAliveClient(i) || GetClientTeam(i) == rTeam || clientTargeted[i] > 0)
 			continue;
 		possiblePlayers[possibleNumber] = i;
 		possibleNumber++;
@@ -1491,7 +1521,7 @@ public void FireRocket()
 			return;
 		}
 			
-		g_ClientAimed[g_RocketEnt[rIndex].target]++;
+		//g_ClientAimed[g_RocketEnt[rIndex].target]++;
 		
 		EmitSoundClientDB(g_RocketEnt[rIndex].target, rsnd_alert ,rIndex,false);
 		EmitSoundAllDB( rsnd_spawn,rIndex,true);
@@ -1737,7 +1767,7 @@ public void OnGameFrame()
 		//Check if the target is available
 		if(!IsValidAliveClient(g_RocketEnt[i].target))
 		{
-			g_ClientAimed[g_RocketEnt[i].target]--;
+			//g_ClientAimed[g_RocketEnt[i].target]--;
 			g_RocketEnt[i].target = SearchTarget(i);
 		}
 		int class = g_RocketEnt[i].class;
@@ -1753,9 +1783,9 @@ public void OnGameFrame()
 			g_RocketEnt[i].SetDirection(fDirection);
 			//CopyVectors(fDirection, g_RocketDirection);
 			
-			g_ClientAimed[g_RocketEnt[i].target]--;
+			//g_ClientAimed[g_RocketEnt[i].target]--;
 			g_RocketEnt[i].target = SearchTarget(i);
-			g_ClientAimed[g_RocketEnt[i].target]++;
+			//g_ClientAimed[g_RocketEnt[i].target]++;
 			
 			g_RocketEnt[i].deflects++;
 			g_RocketEnt[i].bounces = 0;
@@ -1845,8 +1875,8 @@ public OnEntityCreated(entity, const String:classname[])
 
 	if (dissolver == -1) return;
 	
-	DispatchKeyValue(dissolver, "dissolvetype", "0");
-	DispatchKeyValue(dissolver, "magnitude", "1");
+	DispatchKeyValue(dissolver, "dissolvetype", "1");
+	DispatchKeyValue(dissolver, "magnitude", "1000");
 	DispatchKeyValue(dissolver, "target", "!activator");
 
 	AcceptEntityInput(dissolver, "Dissolve", entity);
@@ -1860,7 +1890,7 @@ public OnEntityCreated(entity, const String:classname[])
 public OnEntityDestroyed(entity)
 {
 	if(!g_isDBmap) return;
-	if(!IsValidEntity(entity)) return;
+	if(entity  == INVALID_ENT_REFERENCE) return;
 	int rIndex = GetRocketIndex(EntIndexToEntRef(entity));
 	if(rIndex == -1) return;
 	
@@ -1985,7 +2015,10 @@ public Action:ApplyDamage(Handle:hTimer, any:hDataPack)
     int  iClient = ReadPackCell(hDataPack);
     int iDamage = ReadPackCell(hDataPack);
     CloseHandle(hDataPack);
-    SlapPlayer(iClient, iDamage, true);
+    if(IsValidAliveClient(iClient))
+    {
+    	SlapPlayer(iClient, iDamage, true);
+    }
 }
 /* PlayParticle()
 **
