@@ -75,6 +75,7 @@ char g_rocketclasses[PLATFORM_MAX_PATH];
 // ---- Plugin's Configuration -------------------------------------------------
 float g_player_speed;
 bool g_pyro_only;
+bool g_annotation_show = true;
 bool g_hud_show;
 float g_hud_x;
 float g_hud_y;
@@ -1760,6 +1761,11 @@ public void FireRocket()
 			return;
 		}
 		
+		if(g_annotation_show)
+		{
+			//ShowAnnotation(rIndex);
+			CreateTimer(0.1,Timer_ShowAnnotation,rIndex);
+		}
 		EmitSoundClientDB(g_RocketEnt[rIndex].target, rsnd_alert ,rIndex,false);
 		EmitSoundAllDB( rsnd_spawn,rIndex,true);
 		if(g_RocketClass[class].snd_beep_use)
@@ -2028,27 +2034,42 @@ public void OnGameFrame()
 			continue;
 		}
 			
+		int class = g_RocketEnt[i].class;
+		int rDef  = GetEntProp(index, Prop_Send, "m_iDeflected") - 1;
+		float aux_mul = 0.0;
 		//Check if the target is available
 		if(!IsValidAliveClient(g_RocketEnt[i].target))
 		{
 			g_RocketEnt[i].target = SearchTarget(i);
+			g_RocketEnt[i].homing = false;
+			if(g_annotation_show)
+			{
+				//ShowAnnotation(i);
+				CreateTimer(0.1,Timer_ShowAnnotation,i);
+			}
+			CreateTimer(g_RocketClass[class].deflectdelay,EnableHoming,i);
 		}
-		int class = g_RocketEnt[i].class;
-		
 		//Check deflects
-		int rDef  = GetEntProp(index, Prop_Send, "m_iDeflected") - 1;
-		float aux_mul = 0.0;
-		if(rDef > g_RocketEnt[i].deflects)
+		else if(rDef > g_RocketEnt[i].deflects)
 		{
 			
 			float fViewAngles[3], fDirection[3];
 			GetClientEyeAngles(g_RocketEnt[i].target, fViewAngles);
+			if(g_annotation_show)
+			{
+				HideAnnotation(i);
+			}
 			GetAngleVectors(fViewAngles, fDirection, NULL_VECTOR, NULL_VECTOR);
 			g_RocketEnt[i].SetDirection(fDirection);
 			
 			g_RocketEnt[i].target = SearchTarget(i);
 			g_RocketEnt[i].deflects++;
 			g_RocketEnt[i].bounces = 0;
+			if(g_annotation_show)
+			{
+				//ShowAnnotation(i);
+				CreateTimer(0.1,Timer_ShowAnnotation,i);
+			}
 			EmitSoundClientDB(g_RocketEnt[i].target, rsnd_alert ,i,false);
 			if(g_RocketEnt[i].aimed && g_RocketClass[class].snd_aimed_use)
 			{
@@ -2195,6 +2216,11 @@ public OnEntityDestroyed(entity)
 		CloseHandle (g_RocketEnt[rIndex].beeptimer);
 	}
 	g_RocketEnt[rIndex].beeptimer = null;
+
+	if(g_annotation_show)
+	{
+		HideAnnotation(rIndex);
+	}
 	RenderHud();
 	if(g_roundActive)
 	{
@@ -2376,6 +2402,57 @@ stock PrecacheParticle(String:strParticleName[])
     PlayParticle(Float:{0.0, 0.0, 0.0}, Float:{0.0, 0.0, 0.0}, strParticleName, 0.1, 0.1);
 }
 
+
+public Action Timer_ShowAnnotation(Handle timer, int rIndex)
+{
+	
+	int index = EntRefToEntIndex(g_RocketEnt[rIndex].entity);
+	if (index == INVALID_ENT_REFERENCE)
+	{
+		return;
+	}
+	int client = g_RocketEnt[rIndex].target;
+	if(!IsValidAliveClient(client))
+	{
+		return;
+	}
+	Handle event = CreateEvent("show_annotation");
+	if(event == INVALID_HANDLE)
+	{
+		return;
+	}
+	SetEventInt(event, "follow_entindex", index);		
+	SetEventFloat(event, "lifetime", 1.1);
+	SetEventInt(event, "id", rIndex);
+	char rocketName[MAX_NAME_LENGTH], auxString[MAX_NAME_LENGTH];
+	int class = g_RocketEnt[rIndex].class;
+	g_RocketClass[class].GetName(auxString,sizeof(auxString));
+	if(useMultiColor())
+	{
+		Format(rocketName,sizeof(rocketName),"%s %s",g_mrc_name[rIndex],auxString);
+	}
+	else
+	{
+		Format(rocketName,sizeof(rocketName),"%s",auxString);
+	}
+	SetEventString(event, "text", "auxString");
+	SetEventString(event, "play_sound", "vo/null.wav");
+	SetEventInt(event, "visibilityBitfield",1 << client);
+	SetEventBool(event,"show_effect", true);
+	FireEvent(event);
+}
+
+public void HideAnnotation(int rIndex)
+{
+	Handle event = CreateEvent("hide_annotation"); 
+	if(event == INVALID_HANDLE)
+	{
+		return;
+	}
+	SetEventInt(event, "id", rIndex); 
+	FireEvent(event); 
+
+}
 /* ClearHud()
 **
 ** Clears the hud's synchronizers on game end.
