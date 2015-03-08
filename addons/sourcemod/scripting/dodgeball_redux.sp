@@ -65,8 +65,11 @@ bool g_canEmitKillSound = true;
 int g_lastSpawned;
 int g_max_rockets_dynamic;
 
-int g_BlueSpawn = -1;
-int g_RedSpawn = -1;
+int g_BlueSpawn;
+int g_RedSpawn;
+int g_observer;
+int g_observer_slot;
+
 Handle g_HudSyncs[MAXHUDNUMBER];
 char g_mainfile[PLATFORM_MAX_PATH];
 char g_rocketclasses[PLATFORM_MAX_PATH];
@@ -75,7 +78,7 @@ char g_rocketclasses[PLATFORM_MAX_PATH];
 // ---- Plugin's Configuration -------------------------------------------------
 float g_player_speed;
 bool g_pyro_only;
-bool g_annotation_show = true;
+bool g_annotation_show;
 bool g_hud_show;
 float g_hud_x;
 float g_hud_y;
@@ -495,7 +498,8 @@ void LoadConfigs()
 	//Main configuration
 	g_player_speed = kv.GetFloat("PlayerSpeed", 300.0);
 	g_pyro_only = !!kv.GetNum("OnlyPyro",0);
-	g_hud_show = !!kv.GetNum("ShowHud",0);
+	g_annotation_show = !!kv.GetNum("ShowAnnotation",1);
+	g_hud_show = !!kv.GetNum("ShowHud",1);
 	g_hud_x = kv.GetFloat("Xpos", 0.03);
 	g_hud_y = kv.GetFloat("Ypos", 0.21);
 	kv.GetString("color",g_hud_color,32,"63 255 127");
@@ -1279,15 +1283,15 @@ public void SearchSpawns()
 	
 	
 	//ObserverPoint
-	/*
+	
 	float opPos[3];
 	float opAng[3];
 	
 	int spawner = GetRandomInt(0,1);
 	if(spawner == 0)
-		spawner = g_RedSpawn;
+		spawner = EntRefToEntIndex(g_RedSpawn);
 	else
-		spawner = g_BlueSpawn;
+		spawner = EntRefToEntIndex(g_BlueSpawn);
 	if(IsValidEntity(spawner)&& spawner > MaxClients)
 	{
 		GetEntPropVector(spawner,Prop_Data,"m_vecOrigin",opPos);
@@ -1299,13 +1303,14 @@ public void SearchSpawns()
 		DispatchSpawn(g_observer);
 		AcceptEntityInput(g_observer, "Enable");
 		TeleportEntity(g_observer, opPos, opAng, NULL_VECTOR);
+		g_observer = EntIndexToEntRef(g_observer);
+		g_observer_slot = -1;
 	}
 	else
 	{
-		g_observer = -1;
+		g_observer = INVALID_ENT_REFERENCE;
 	}
 	return;
-	*/
 }
 
 /* GetRandomRocketClass()
@@ -1426,7 +1431,6 @@ public Action Timer_MoveRocketSlot(Handle timer, int oldSlot)
 		g_RocketEnt[newSlot].aimed = g_RocketEnt[oldSlot].aimed;
 		g_RocketEnt[newSlot].deflects = g_RocketEnt[oldSlot].deflects;
 		g_RocketEnt[newSlot].speed = g_RocketEnt[oldSlot].speed;
-		g_RocketEnt[newSlot].observer = g_RocketEnt[oldSlot].observer;
 		g_RocketEnt[newSlot].homing = g_RocketEnt[oldSlot].homing;
 		
 		float auxVec[3];
@@ -1485,7 +1489,6 @@ public Action Timer_MoveRocketSlot(Handle timer, int oldSlot)
 		g_RocketEnt[oldSlot].aimed = false;
 		g_RocketEnt[oldSlot].deflects = 0;
 		g_RocketEnt[oldSlot].speed = 0.0;
-		g_RocketEnt[oldSlot].observer = -1;
 		g_RocketEnt[oldSlot].homing = true;
 		if(g_RocketEnt[oldSlot].beeptimer != null)
 		{
@@ -1683,7 +1686,6 @@ public void FireRocket()
 		g_RocketEnt[rIndex].aimed = false;
 		g_RocketEnt[rIndex].deflects = 0;
 		g_RocketEnt[rIndex].speed = 0.0;
-		g_RocketEnt[rIndex].observer = -1;
 		g_RocketEnt[rIndex].homing = true;
 		g_RocketEnt[rIndex].beeptimer = null;
 		
@@ -1763,7 +1765,6 @@ public void FireRocket()
 		
 		if(g_annotation_show)
 		{
-			//ShowAnnotation(rIndex);
 			CreateTimer(0.1,Timer_ShowAnnotation,rIndex);
 		}
 		EmitSoundClientDB(g_RocketEnt[rIndex].target, rsnd_alert ,rIndex,false);
@@ -1774,12 +1775,13 @@ public void FireRocket()
 		}
 		
 		//Observer point
-		/*if(IsValidEntity(g_observer))
+		if(g_observer != INVALID_ENT_REFERENCE && g_observer_slot == -1)
 		{
 			TeleportEntity(g_observer, fPosition, fAngles, Float:{0.0, 0.0, 0.0});
 			SetVariantString("!activator");
-			AcceptEntityInput(g_observer, "SetParent", g_RocketEnt);
-		}*/
+			AcceptEntityInput(g_observer, "SetParent", g_RocketEnt[rIndex].entity);
+			g_observer_slot = rIndex;
+		}
 		
 		g_lastSpawned = rocketTeam;
 		g_canSpawn = false;
@@ -2044,7 +2046,6 @@ public void OnGameFrame()
 			g_RocketEnt[i].homing = false;
 			if(g_annotation_show)
 			{
-				//ShowAnnotation(i);
 				CreateTimer(0.1,Timer_ShowAnnotation,i);
 			}
 			CreateTimer(g_RocketClass[class].deflectdelay,EnableHoming,i);
@@ -2067,7 +2068,6 @@ public void OnGameFrame()
 			g_RocketEnt[i].bounces = 0;
 			if(g_annotation_show)
 			{
-				//ShowAnnotation(i);
 				CreateTimer(0.1,Timer_ShowAnnotation,i);
 			}
 			EmitSoundClientDB(g_RocketEnt[i].target, rsnd_alert ,i,false);
@@ -2227,28 +2227,29 @@ public OnEntityDestroyed(entity)
 		CreateTimer(g_spawn_delay, TryFireRocket);
 
 	}
-	/*
-	if( IsValidEntity(g_observer))
+	
+	if(g_observer != INVALID_ENT_REFERENCE && g_observer_slot == rIndex)
 	{
 		SetVariantString("");
 		AcceptEntityInput(g_observer, "ClearParent");
 		
-		new Float:opPos[3];
-		new Float:opAng[3];
+		float opPos[3];
+		float opAng[3];
 		
-		new spawner = GetRandomInt(0,1);
+		int spawner = GetRandomInt(0,1);
 		if(spawner == 0)
 			spawner = g_RedSpawn;
 		else
 			spawner = g_BlueSpawn;
 		
-		if(IsValidEntity(spawner)&& spawner > MaxClients)
+		if(spawner != INVALID_ENT_REFERENCE)
 		{
 			GetEntPropVector(spawner,Prop_Data,"m_vecOrigin",opPos);
 			GetEntPropVector(spawner,Prop_Data, "m_angAbsRotation", opAng);
 			TeleportEntity(g_observer, opPos, opAng, NULL_VECTOR);
-		}		
-	}*/
+		}
+		g_observer_slot = -1;
+	}
 	
 }
 
@@ -2402,7 +2403,10 @@ stock PrecacheParticle(String:strParticleName[])
     PlayParticle(Float:{0.0, 0.0, 0.0}, Float:{0.0, 0.0, 0.0}, strParticleName, 0.1, 0.1);
 }
 
-
+/* Timer_ShowAnnotation()
+**
+** Shows an annotation over the rocket only to the rocket's target.
+** -------------------------------------------------------------------------- */
 public Action Timer_ShowAnnotation(Handle timer, int rIndex)
 {
 	
@@ -2435,13 +2439,17 @@ public Action Timer_ShowAnnotation(Handle timer, int rIndex)
 	{
 		Format(rocketName,sizeof(rocketName),"%s",auxString);
 	}
-	SetEventString(event, "text", "auxString");
+	SetEventString(event, "text", rocketName);
 	SetEventString(event, "play_sound", "vo/null.wav");
 	SetEventInt(event, "visibilityBitfield",1 << client);
 	SetEventBool(event,"show_effect", true);
 	FireEvent(event);
 }
 
+/* HideAnnotation()
+**
+** Hides teh rocket's annotation
+** -------------------------------------------------------------------------- */
 public void HideAnnotation(int rIndex)
 {
 	Handle event = CreateEvent("hide_annotation"); 

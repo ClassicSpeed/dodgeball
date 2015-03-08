@@ -20,7 +20,6 @@ bool g_RocketAimed[MAXROCKETS] = {false,...};
 float g_RocketDirection[MAXROCKETS][3];
 int g_DeflectCount[MAXROCKETS] = {0,...};
 float g_RocketSpeed[MAXROCKETS] = {0.0,...};
-int g_observer[MAXROCKETS] = {-1,...};
 bool g_HomingEnabled[MAXROCKETS] = {true,...};
 Handle g_TimerBeep[MAXROCKETS] = {null,...};
 
@@ -83,11 +82,6 @@ methodmap RocketEnt
 	{
 		public get() { return g_RocketSpeed[ this.index ]; }
 		public set( float num ) { g_RocketSpeed[ this.index ] = num; }
-	}
-	property int observer
-	{
-		public get() { return g_observer[ this.index ]; }
-		public set( int ent ) { g_observer[ this.index ] = ent; }
 	}
 	property bool homing
 	{
