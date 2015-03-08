@@ -1225,7 +1225,7 @@ public Action:OnPlayerDeath(Handle:event, const String:name[], bool:dontBroadcas
 			g_max_rockets_dynamic--;
 			if(g_RocketEnt[g_max_rockets_dynamic].entity != INVALID_ENT_REFERENCE)
 			{
-				MoveRocketSlot(g_max_rockets_dynamic);
+				CreateTimer(0.1,Timer_MoveRocketSlot,g_max_rockets_dynamic);
 			}			
 			ClearHud();
 		}
@@ -1382,16 +1382,21 @@ public int GetRocketIndex(int entity)
 	return -1;
 }
 
-/* MoveRocketSlot()
+/* Timer_MoveRocketSlot()
 **
 ** Copye the info on a slot, to another with a lower index, if it can't find one, it destroys the rocket
 ** -------------------------------------------------------------------------- */
-public void MoveRocketSlot(oldSlot)
+public Action Timer_MoveRocketSlot(Handle timer, int oldSlot)
 {
 	int newSlot = GetRocketSlot();
-	int index = EntRefToEntIndex(g_RocketEnt[oldSlot].entity);
+	int index = g_RocketEnt[oldSlot].entity;
+	if(index == INVALID_ENT_REFERENCE)
+	{
+		return;
+	}
 	
-	if(newSlot == -1 || index != INVALID_ENT_REFERENCE)
+	//If there isn't any slot available we just remove the rocket.
+	if(newSlot == -1)
 	{
 		int dissolver = CreateEntityByName("env_entity_dissolver");
 
@@ -1407,8 +1412,7 @@ public void MoveRocketSlot(oldSlot)
 		
 			AcceptEntityInput(dissolver, "Dissolve", index);
 			AcceptEntityInput(dissolver, "Kill");
-		}
-	
+		}	
 	}
 	else
 	{
@@ -1432,6 +1436,44 @@ public void MoveRocketSlot(oldSlot)
 		if(g_RocketClass[class].snd_beep_use)
 		{
 			g_RocketEnt[newSlot].beeptimer = CreateTimer(g_RocketClass[class].snd_beep_delay,RocketBeep,newSlot,TIMER_REPEAT);
+		}
+		
+		if(useMultiColor())
+		{
+			//model
+			int ent;
+			int parent;
+			if(g_mrc_applycolor_model[newSlot])
+			{
+				DispatchKeyValue(g_RocketEnt[newSlot].entity, "rendercolor", g_mrc_color[newSlot]);
+			}
+			//trail
+			if(!StrEqual(g_mrc_trail[newSlot],""))
+			{ 
+				ent = -1;
+				while((ent = FindEntityByClassname(ent,"env_spritetrail")) != -1)
+				{
+					parent = GetEntPropEnt(ent, Prop_Data, "m_pParent"); 
+					if(IsValidEntity(parent) && g_RocketEnt[newSlot].entity == EntIndexToEntRef(parent))
+					{
+						DispatchKeyValue(ent, "rendercolor", g_mrc_color[newSlot]);
+					}
+				}
+			}
+			//light
+			if(g_mrc_use_light[newSlot])
+			{
+				ent = -1;
+				while((ent = FindEntityByClassname(ent,"light_dynamic")) != -1)
+				{
+					
+					parent = GetEntPropEnt(ent, Prop_Data, "m_pParent");  
+					if(IsValidEntity(parent) && g_RocketEnt[newSlot].entity == EntIndexToEntRef(parent))
+					{
+						DispatchKeyValue(ent, "_light", g_mrc_color[newSlot]);
+					}
+				}
+			}
 		}
 		
 		g_RocketEnt[oldSlot].entity = INVALID_ENT_REFERENCE;
