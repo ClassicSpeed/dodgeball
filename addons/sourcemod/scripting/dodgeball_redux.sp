@@ -79,6 +79,7 @@ char g_rocketclasses[PLATFORM_MAX_PATH];
 float g_player_speed;
 bool g_pyro_only;
 bool g_annotation_show;
+float g_annotation_distance;
 bool g_hud_show;
 float g_hud_x;
 float g_hud_y;
@@ -499,6 +500,7 @@ void LoadConfigs()
 	g_player_speed = kv.GetFloat("PlayerSpeed", 300.0);
 	g_pyro_only = !!kv.GetNum("OnlyPyro",0);
 	g_annotation_show = !!kv.GetNum("ShowAnnotation",1);
+	g_annotation_distance = kv.GetFloat("HideAnnotationDistance", 1000.0);
 	g_hud_show = !!kv.GetNum("ShowHud",1);
 	g_hud_x = kv.GetFloat("Xpos", 0.03);
 	g_hud_y = kv.GetFloat("Ypos", 0.21);
@@ -1432,7 +1434,7 @@ public Action Timer_MoveRocketSlot(Handle timer, int oldSlot)
 		g_RocketEnt[newSlot].deflects = g_RocketEnt[oldSlot].deflects;
 		g_RocketEnt[newSlot].speed = g_RocketEnt[oldSlot].speed;
 		g_RocketEnt[newSlot].homing = g_RocketEnt[oldSlot].homing;
-		
+		g_RocketEnt[newSlot].annotation = g_RocketEnt[oldSlot].annotation;
 		float auxVec[3];
 		g_RocketEnt[oldSlot].GetDirection(auxVec);
 		g_RocketEnt[newSlot].SetDirection(auxVec);
@@ -1490,6 +1492,7 @@ public Action Timer_MoveRocketSlot(Handle timer, int oldSlot)
 		g_RocketEnt[oldSlot].deflects = 0;
 		g_RocketEnt[oldSlot].speed = 0.0;
 		g_RocketEnt[oldSlot].homing = true;
+		g_RocketEnt[oldSlot].annotation = false;
 		if(g_RocketEnt[oldSlot].beeptimer != null)
 		{
 			CloseHandle(g_RocketEnt[oldSlot].beeptimer);
@@ -1687,6 +1690,7 @@ public void FireRocket()
 		g_RocketEnt[rIndex].deflects = 0;
 		g_RocketEnt[rIndex].speed = 0.0;
 		g_RocketEnt[rIndex].homing = true;
+		g_RocketEnt[rIndex].annotation = false;
 		g_RocketEnt[rIndex].beeptimer = null;
 		
 		
@@ -2058,7 +2062,10 @@ public void OnGameFrame()
 			GetClientEyeAngles(g_RocketEnt[i].target, fViewAngles);
 			if(g_annotation_show)
 			{
-				HideAnnotation(i);
+				if(g_RocketEnt[i].annotation)
+				{
+					HideAnnotation(i);
+				}
 			}
 			GetAngleVectors(fViewAngles, fDirection, NULL_VECTOR, NULL_VECTOR);
 			g_RocketEnt[i].SetDirection(fDirection);
@@ -2114,6 +2121,16 @@ public void OnGameFrame()
 					LerpVectors(rocketDirection, fDirectionToTarget, rocketDirection, turnrate);
 					
 					g_RocketEnt[i].SetDirection(rocketDirection);
+				}
+			}
+			if(g_RocketEnt[i].annotation)
+			{
+				float clientPos[3],rocketPos[3];
+				GetClientAbsOrigin(g_RocketEnt[i].target, clientPos);
+				GetEntPropVector(index, Prop_Send, "m_vecOrigin", rocketPos);
+				if(GetVectorDistance(clientPos,rocketPos) < g_annotation_distance)
+				{
+					HideAnnotation(i);
 				}
 			}
 		}
@@ -2217,7 +2234,8 @@ public OnEntityDestroyed(entity)
 	g_RocketEnt[rIndex].deflects = -1;
 	g_RocketEnt[rIndex].speed = -1.0;
 	g_RocketEnt[rIndex].aimed = false;
-	g_RocketEnt[rIndex].homing = false;
+	g_RocketEnt[rIndex].homing = true;
+	g_RocketEnt[rIndex].annotation = false;
 	if(g_RocketEnt[rIndex].beeptimer != null)
 	{
 		CloseHandle (g_RocketEnt[rIndex].beeptimer);
@@ -2427,13 +2445,21 @@ public Action Timer_ShowAnnotation(Handle timer, int rIndex)
 	{
 		return;
 	}
+	float clientPos[3], rocketPos[3];
+	
+	GetClientAbsOrigin(client, clientPos);
+	GetEntPropVector(index, Prop_Send, "m_vecOrigin", rocketPos);
+	if(GetVectorDistance(clientPos,rocketPos) < g_annotation_distance)
+	{
+		return;
+	}
 	Handle event = CreateEvent("show_annotation");
 	if(event == INVALID_HANDLE)
 	{
 		return;
 	}
 	SetEventInt(event, "follow_entindex", index);		
-	SetEventFloat(event, "lifetime", 1.1);
+	SetEventFloat(event, "lifetime", 9999.0);
 	SetEventInt(event, "id", rIndex);
 	char rocketName[MAX_NAME_LENGTH], auxString[MAX_NAME_LENGTH];
 	int class = g_RocketEnt[rIndex].class;
@@ -2451,6 +2477,7 @@ public Action Timer_ShowAnnotation(Handle timer, int rIndex)
 	SetEventInt(event, "visibilityBitfield",1 << client);
 	SetEventBool(event,"show_effect", true);
 	FireEvent(event);
+	g_RocketEnt[rIndex].annotation = true;
 }
 
 /* HideAnnotation()
@@ -2466,7 +2493,7 @@ public void HideAnnotation(int rIndex)
 	}
 	SetEventInt(event, "id", rIndex); 
 	FireEvent(event); 
-
+	g_RocketEnt[rIndex].annotation = false;
 }
 /* ClearHud()
 **

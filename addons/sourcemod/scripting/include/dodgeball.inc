@@ -20,7 +20,8 @@ bool g_RocketAimed[MAXROCKETS] = {false,...};
 float g_RocketDirection[MAXROCKETS][3];
 int g_DeflectCount[MAXROCKETS] = {0,...};
 float g_RocketSpeed[MAXROCKETS] = {0.0,...};
-bool g_HomingEnabled[MAXROCKETS] = {true,...};
+bool g_RocketHomingEnabled[MAXROCKETS] = {true,...};
+bool g_RocketAnnotationExist[MAXROCKETS] = {true,...};
 Handle g_TimerBeep[MAXROCKETS] = {null,...};
 
 methodmap RocketEnt
@@ -85,8 +86,13 @@ methodmap RocketEnt
 	}
 	property bool homing
 	{
-		public get() { return g_HomingEnabled[ this.index ]; }
-		public set( bool isHoming ) { g_HomingEnabled[ this.index ] = isHoming; }
+		public get() { return g_RocketHomingEnabled[ this.index ]; }
+		public set( bool isHoming ) { g_RocketHomingEnabled[ this.index ] = isHoming; }
+	}
+	property bool annotation
+	{
+		public get() { return g_RocketAnnotationExist[ this.index ]; }
+		public set( bool hasAnnotation) { g_RocketAnnotationExist[ this.index ] = hasAnnotation; }
 	}
 	property Handle beeptimer
 	{
