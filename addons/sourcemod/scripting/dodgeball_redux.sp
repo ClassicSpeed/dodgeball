@@ -2089,6 +2089,13 @@ public void OnGameFrame()
 			}
 			g_RocketEnt[i].homing = false;
 			g_RocketEnt[i].owner = GetEntPropEnt(index, Prop_Send, "m_hOwnerEntity");
+			if(g_RocketEnt[i].aimed)
+			{
+				int ncolor[3];
+				GetIntColor(g_hud_aimed_color,ncolor);
+				SetHudTextParams(-1.0,-1.0,2.5,ncolor[0],ncolor[1],ncolor[2],255, 1, 0.0, 0.5, 0.5);
+				ShowSyncHudText(g_RocketEnt[i].owner, g_HudSyncs[MAXHUDNUMBER-1], "%s",g_hud_aimed_text);
+			}
 			CreateTimer(g_RocketClass[class].deflectdelay,EnableHoming,i);
 			RenderHud();
 		}
