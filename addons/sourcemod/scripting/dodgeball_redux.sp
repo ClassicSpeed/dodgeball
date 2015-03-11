@@ -307,7 +307,7 @@ void LoadRocketClasses()
 	defClass.deflectdelay = kv.GetFloat("DeflectDelay",0.1);
 	defClass.targetclosest = !!kv.GetNum("TargetClosest",0);
 	defClass.allowaimed = !!kv.GetNum("AllowAimed",0);
-	defClass.aimedspeed = kv.GetFloat("AimedSpeed",2500.0);
+	defClass.aimedspeed = kv.GetFloat("AimedSpeed",2.0);
 	//Bounce
 	defClass.maxbounce = kv.GetNum("MaxBounce",10);
 	defClass.bouncedelay = kv.GetFloat("BouceDelay",0.1);
@@ -2148,7 +2148,7 @@ public void OnGameFrame()
 			}
 			if(g_RocketClass[class].allowaimed && g_RocketEnt[i].aimed)
 			{
-				aux_mul = g_RocketClass[class].aimedspeed;
+				aux_mul *= g_RocketClass[class].aimedspeed;
 			}
 			
 			float damage = g_RocketClass[class].damage + g_RocketClass[class].damageinc * g_RocketEnt[i].deflects;
