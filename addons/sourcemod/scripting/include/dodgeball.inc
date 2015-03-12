@@ -21,6 +21,7 @@ float g_RocketDirection[MAXROCKETS][3];
 int g_DeflectCount[MAXROCKETS] = {0,...};
 float g_RocketSpeed[MAXROCKETS] = {0.0,...};
 bool g_RocketHomingEnabled[MAXROCKETS] = {true,...};
+bool g_RocketKeepDirection[MAXROCKETS] = {true,...};
 bool g_RocketAnnotationExist[MAXROCKETS] = {true,...};
 Handle g_TimerBeep[MAXROCKETS] = {null,...};
 
@@ -89,6 +90,11 @@ methodmap RocketEnt
 		public get() { return g_RocketHomingEnabled[ this.index ]; }
 		public set( bool isHoming ) { g_RocketHomingEnabled[ this.index ] = isHoming; }
 	}
+	property bool keepdir
+	{
+		public get() { return g_RocketKeepDirection[ this.index ]; }
+		public set( bool keep) { g_RocketKeepDirection[ this.index ] = keep; }
+	}
 	property bool annotation
 	{
 		public get() { return g_RocketAnnotationExist[ this.index ]; }
@@ -116,12 +122,16 @@ float g_class_speed[ROCKETCLASSNUM];
 float g_class_speed_inc[ROCKETCLASSNUM];
 float g_class_turnrate[ROCKETCLASSNUM];
 float g_class_turnrate_inc[ROCKETCLASSNUM];
+float g_class_elevate[ROCKETCLASSNUM];
+float g_class_elevate_max[ROCKETCLASSNUM];
+float g_class_elevate_min[ROCKETCLASSNUM];
 float g_class_deflect_delay[ROCKETCLASSNUM];
 bool g_class_target_closest[ROCKETCLASSNUM];
 bool g_class_aimed_allow[ROCKETCLASSNUM];
 float g_class_aimed_speed[ROCKETCLASSNUM];
 int g_class_bounce_max[ROCKETCLASSNUM];
 float g_class_bounce_delay[ROCKETCLASSNUM];
+bool g_class_bounce_keep[ROCKETCLASSNUM];
 //Rocket's sounds
 bool g_class_sound_spawn_play[ROCKETCLASSNUM];
 char g_class_sound_spawn[ROCKETCLASSNUM][PLATFORM_MAX_PATH];
@@ -210,6 +220,21 @@ methodmap RocketClass
 		public get() { return g_class_turnrate_inc[ this.index ]; }
 		public set( float fturnrateinc ) { g_class_turnrate_inc[ this.index ] = fturnrateinc; }
 	}
+	property float elevaterate
+	{
+		public get() { return g_class_elevate[ this.index ]; }
+		public set( float elevate ) { g_class_elevate[ this.index ] = elevate; }
+	}
+	property float elevatemax
+	{
+		public get() { return g_class_elevate_max[ this.index ]; }
+		public set( float max ) { g_class_elevate_max[ this.index ] = max; }
+	}
+	property float elevatemin
+	{
+		public get() { return g_class_elevate_min[ this.index ]; }
+		public set( float min ) { g_class_elevate_min[ this.index ] = min; }
+	}
 	property float deflectdelay
 	{
 		public get() { return g_class_deflect_delay[ this.index ]; }
@@ -239,6 +264,11 @@ methodmap RocketClass
 	{
 		public get() { return g_class_bounce_delay[ this.index ]; }
 		public set( float delay ) { g_class_bounce_delay[ this.index ] = delay; }
+	}
+	property bool bouncekeepdir
+	{
+		public get() { return g_class_bounce_keep[ this.index ]; }
+		public set( bool allow ) { g_class_bounce_keep[ this.index ] = allow; }
 	}
 	
 	//Sounds

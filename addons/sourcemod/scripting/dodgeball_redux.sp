@@ -303,6 +303,10 @@ void LoadRocketClasses()
 	//Turnrate
 	defClass.turnrate = kv.GetFloat("TurnRate",0.05);
 	defClass.turnrateinc = kv.GetFloat("DeflectTurnRateInc",0.005);
+	//Elevation
+	defClass.elevaterate = kv.GetFloat("ElevationRate",0.1075);
+	defClass.elevatemax = kv.GetFloat("ElevationLimitMax",0.125);
+	defClass.elevatemin = kv.GetFloat("ElevationLimitMin",-0.125);
 	//On deflect
 	defClass.deflectdelay = kv.GetFloat("DeflectDelay",0.1);
 	defClass.targetclosest = !!kv.GetNum("TargetClosest",0);
@@ -311,6 +315,7 @@ void LoadRocketClasses()
 	//Bounce
 	defClass.maxbounce = kv.GetNum("MaxBounce",10);
 	defClass.bouncedelay = kv.GetFloat("BouceDelay",0.1);
+	defClass.bouncekeepdir = !!kv.GetNum("BounceKeepDirection",1);
 	
 	//Sounds
 
@@ -394,6 +399,10 @@ void LoadRocketClasses()
 		//Turnrate
 		g_RocketClass[count].turnrate = kv.GetFloat("TurnRate",defClass.turnrate);
 		g_RocketClass[count].turnrateinc = kv.GetFloat("DeflectTurnRateInc",defClass.turnrateinc);
+		//Elevation
+		g_RocketClass[count].elevaterate = kv.GetFloat("ElevationRate",defClass.elevaterate);
+		g_RocketClass[count].elevatemax = kv.GetFloat("ElevationLimitMax",defClass.elevatemax);
+		g_RocketClass[count].elevatemin = kv.GetFloat("ElevationLimitMin",defClass.elevatemin);
 		//On deflect
 		g_RocketClass[count].deflectdelay = kv.GetFloat("DeflectDelay",defClass.deflectdelay);
 		g_RocketClass[count].targetclosest = !!kv.GetNum("TargetClosest",defClass.targetclosest);
@@ -402,6 +411,7 @@ void LoadRocketClasses()
 		//Bounce
 		g_RocketClass[count].maxbounce = kv.GetNum("MaxBounce",defClass.maxbounce);
 		g_RocketClass[count].bouncedelay = kv.GetFloat("BouceDelay",defClass.bouncedelay);
+		g_RocketClass[count].bouncekeepdir = !!kv.GetNum("BounceKeepDirection",defClass.bouncekeepdir);
 		
 		//Sounds
 		
@@ -1434,6 +1444,7 @@ public Action Timer_MoveRocketSlot(Handle timer, int oldSlot)
 		g_RocketEnt[newSlot].deflects = g_RocketEnt[oldSlot].deflects;
 		g_RocketEnt[newSlot].speed = g_RocketEnt[oldSlot].speed;
 		g_RocketEnt[newSlot].homing = g_RocketEnt[oldSlot].homing;
+		g_RocketEnt[newSlot].keepdir = g_RocketEnt[oldSlot].keepdir;
 		g_RocketEnt[newSlot].annotation = g_RocketEnt[oldSlot].annotation;
 		float auxVec[3];
 		g_RocketEnt[oldSlot].GetDirection(auxVec);
@@ -1492,6 +1503,7 @@ public Action Timer_MoveRocketSlot(Handle timer, int oldSlot)
 		g_RocketEnt[oldSlot].deflects = 0;
 		g_RocketEnt[oldSlot].speed = 0.0;
 		g_RocketEnt[oldSlot].homing = true;
+		g_RocketEnt[oldSlot].keepdir = false;
 		g_RocketEnt[oldSlot].annotation = false;
 		if(g_RocketEnt[oldSlot].beeptimer != null)
 		{
@@ -1689,7 +1701,8 @@ public void FireRocket()
 		g_RocketEnt[rIndex].aimed = false;
 		g_RocketEnt[rIndex].deflects = 0;
 		g_RocketEnt[rIndex].speed = 0.0;
-		g_RocketEnt[rIndex].homing = true;
+		g_RocketEnt[rIndex].homing = true;		
+		g_RocketEnt[rIndex].keepdir = false;
 		g_RocketEnt[rIndex].annotation = false;
 		g_RocketEnt[rIndex].beeptimer = null;
 		
@@ -1989,10 +2002,18 @@ public Action OnTouch(int entity, int other)
 	int class = g_RocketEnt[rIndex].class;	
 	g_RocketEnt[rIndex].bounces++;
 	g_RocketEnt[rIndex].homing = false;
+	CreateTimer(g_RocketClass[class].bouncedelay,EnableHoming,rIndex);
+	if(g_RocketClass[class].bouncekeepdir)
+	{
+		g_RocketEnt[rIndex].keepdir = true;
+		CreateTimer(g_RocketClass[class].bouncedelay,DisableKeepDirection,rIndex);
+	}
 	
 	EmitSoundAllDB(rsnd_bounce,rIndex,true);
+	float fDirection[3];
+	GetAngleVectors(vNewAngles,fDirection,NULL_VECTOR,NULL_VECTOR);
+	g_RocketEnt[rIndex].SetDirection(fDirection);
 	
-	CreateTimer(g_RocketClass[class].bouncedelay,EnableHoming,rIndex);
 	SDKUnhook(entity, SDKHook_Touch, OnTouch);
 	return Plugin_Handled;
 }
@@ -2017,7 +2038,7 @@ public void OnGameFrame()
 	{	
 		return;
 	}
-	
+	//We control everybody's speed
 	for(int i = 1; i <= MaxClients; i++)
 	{
 		if(IsValidAliveClient(i))
@@ -2031,17 +2052,15 @@ public void OnGameFrame()
 	}
 	
 	//Rocket Management
-	int index;
 	for(int i = 0; i < MAXROCKETS; i++)
 	{
-		index = EntRefToEntIndex(g_RocketEnt[i].entity);
+		int index = EntRefToEntIndex(g_RocketEnt[i].entity);
 		if (index == INVALID_ENT_REFERENCE)
 		{
 			continue;
 		}
-			
 		int class = g_RocketEnt[i].class;
-		int rDef  = GetEntProp(index, Prop_Send, "m_iDeflected") - 1;
+		int rDeflects  = GetEntProp(index, Prop_Send, "m_iDeflected") - 1;
 		float aux_mul = 0.0;
 		//Check if the target is available
 		if(!IsValidAliveClient(g_RocketEnt[i].target))
@@ -2055,11 +2074,9 @@ public void OnGameFrame()
 			CreateTimer(g_RocketClass[class].deflectdelay,EnableHoming,i);
 		}
 		//Check deflects
-		else if(rDef > g_RocketEnt[i].deflects)
+		else if(rDeflects > g_RocketEnt[i].deflects)
 		{
-			
-			float fViewAngles[3], fDirection[3];
-			GetClientEyeAngles(g_RocketEnt[i].target, fViewAngles);
+			//We hide the old annotation (if there is still active)
 			if(g_annotation_show)
 			{
 				if(g_RocketEnt[i].annotation)
@@ -2067,7 +2084,22 @@ public void OnGameFrame()
 					HideAnnotation(i);
 				}
 			}
-			GetAngleVectors(fViewAngles, fDirection, NULL_VECTOR, NULL_VECTOR);
+			//We get the rocket's angle and we aplicate de elevation deflect
+			float fAngles[3], fDirection[3];
+			GetClientEyeAngles(g_RocketEnt[i].target, fAngles);
+			GetAngleVectors(fAngles, fDirection, NULL_VECTOR, NULL_VECTOR);
+			
+			fDirection[2]+= g_RocketClass[class].elevaterate;
+			if(fDirection[2] > g_RocketClass[class].elevatemax)
+			{
+				fDirection[2] = g_RocketClass[class].elevatemax;
+			}
+			else if(fDirection[2] < g_RocketClass[class].elevatemin)
+			{
+				fDirection[2] = g_RocketClass[class].elevatemin;
+			}
+			GetVectorAngles(fDirection,fAngles);
+			SetEntPropVector(index, Prop_Send, "m_angRotation", fAngles);
 			g_RocketEnt[i].SetDirection(fDirection);
 			
 			g_RocketEnt[i].target = SearchTarget(i);
@@ -2135,7 +2167,7 @@ public void OnGameFrame()
 			}
 		}
 		
-		if(g_RocketEnt[i].homing)
+		if(!g_RocketEnt[i].keepdir)
 		{
 			float rocketDirection[3];
 			g_RocketEnt[i].GetDirection(rocketDirection);
@@ -2172,13 +2204,21 @@ public void OnGameFrame()
 
 /* EnableHoming()
 **
-** Timer used re-enable the rocket's movement 
+** Timer used re-enable the rocket's movement.
 ** -------------------------------------------------------------------------- */
 public Action EnableHoming(Handle timer, int rIndex)
 {
 	g_RocketEnt[rIndex].homing = true;
 }
 
+/* DisableKeepDirection()
+**
+** Timer used to disable the keep direction state. 
+** -------------------------------------------------------------------------- */
+public Action DisableKeepDirection(Handle timer, int rIndex)
+{
+	g_RocketEnt[rIndex].keepdir = false;
+}
 public OnEntityCreated(entity, const String:classname[])
 {
 	if(!g_isDBmap) 
