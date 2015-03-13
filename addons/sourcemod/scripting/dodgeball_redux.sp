@@ -2008,11 +2008,14 @@ public Action OnTouch(int entity, int other)
 		g_RocketEnt[rIndex].keepdir = true;
 		CreateTimer(g_RocketClass[class].bouncedelay,DisableKeepDirection,rIndex);
 	}
+	else
+	{
+		float fDirection[3];
+		GetAngleVectors(vNewAngles,fDirection,NULL_VECTOR,NULL_VECTOR);
+		g_RocketEnt[rIndex].SetDirection(fDirection);
+	}
 	
 	EmitSoundAllDB(rsnd_bounce,rIndex,true);
-	float fDirection[3];
-	GetAngleVectors(vNewAngles,fDirection,NULL_VECTOR,NULL_VECTOR);
-	g_RocketEnt[rIndex].SetDirection(fDirection);
 	
 	SDKUnhook(entity, SDKHook_Touch, OnTouch);
 	return Plugin_Handled;
@@ -2219,6 +2222,7 @@ public Action DisableKeepDirection(Handle timer, int rIndex)
 {
 	g_RocketEnt[rIndex].keepdir = false;
 }
+
 public OnEntityCreated(entity, const String:classname[])
 {
 	if(!g_isDBmap) 
