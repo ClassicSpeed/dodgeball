@@ -70,6 +70,13 @@ int g_RedSpawn;
 int g_observer;
 int g_observer_slot;
 
+bool g_1v1_started = false;
+int	g_1v1_music_played;
+int g_1v1_red_life;
+Handle g_1v1_red_beep;
+int g_1v1_blue_life;
+Handle g_1v1_blue_beep;
+
 Handle g_HudSyncs[MAXHUDNUMBER];
 char g_mainfile[PLATFORM_MAX_PATH];
 char g_rocketclasses[PLATFORM_MAX_PATH];
@@ -95,6 +102,13 @@ char g_mrc_trail[MAXMULTICOLORHUD][PLATFORM_MAX_PATH];
 bool g_mrc_applycolor_model[MAXMULTICOLORHUD];
 bool g_mrc_applycolor_trail[MAXMULTICOLORHUD];
 bool g_mrc_use_light[MAXMULTICOLORHUD];
+
+//1v1 Mode
+bool g_1v1_allow;
+int g_1v1_lives;
+char g_1v1_beep_snd[PLATFORM_MAX_PATH];
+float g_1v1_beep_delay;
+StringMap g_1v1_Music;
 
 //Sound-config
 StringMap g_SndRoundStart;
@@ -153,6 +167,7 @@ public void OnPluginStart()
 	RegAdminCmd("sm_reloaddb", Command_ReloadConfig, ADMFLAG_ROOT ,"Reload the dodgeball's configs on round end.");
 	
 	//Creation of Tries
+	g_1v1_Music = CreateTrie();
 	g_SndRoundStart = CreateTrie();
 	g_SndOnDeath = CreateTrie();
 	g_SndOnKill = CreateTrie();
@@ -497,6 +512,7 @@ void LoadConfigs()
 	}
 	
 	//Here we clean the Tries
+	g_1v1_Music.Clear();
 	g_SndRoundStart.Clear();
 	g_SndOnDeath.Clear();
 	g_SndOnKill.Clear();
@@ -561,7 +577,37 @@ void LoadConfigs()
 	
 	kv.Rewind();
 	
-	//Mod Souns
+	//1v1 Mode
+	if(kv.JumpToKey("1v1mode"))
+	{
+		g_1v1_allow = !!kv.GetNum("Allow1v1",1);
+		if(kv.JumpToKey("Lives"))
+		{
+			g_1v1_lives = kv.GetNum("Lives",3);
+			kv.GetString("BeepSound",g_1v1_beep_snd,PLATFORM_MAX_PATH,"");
+			g_1v1_beep_delay = kv.GetFloat("BeepDelay",1.5);
+			kv.GoBack();
+		}
+	
+		if(kv.JumpToKey("Music"))
+		{
+			char key[4], sndFile[PLATFORM_MAX_PATH];
+			for(int i=1; i<MAXGENERIC; i++)
+			{
+				IntToString(i, key, sizeof(key));
+				kv.GetString(key, sndFile, sizeof(sndFile),"");
+				if(StrEqual(sndFile, ""))
+				{
+					break;
+				}
+				g_1v1_Music.SetString(key,sndFile);
+			}
+			kv.GoBack();
+		}
+	}
+	
+	kv.Rewind();
+	//Mod Sounds
 	if(kv.JumpToKey("sounds"))
 	{
 		char key[4], sndFile[PLATFORM_MAX_PATH];
@@ -715,6 +761,7 @@ void LoadConfigs()
 public void PrecacheFiles()
 {
 	//Mod's sounds
+	PrecacheSoundFromTrie(g_1v1_Music);
 	PrecacheSoundFromTrie(g_SndRoundStart);
 	PrecacheSoundFromTrie(g_SndOnDeath);
 	PrecacheSoundFromTrie(g_SndOnKill);
@@ -986,6 +1033,15 @@ public Action OnRoundStart(Handle event, const char[] name, bool dontBroadcast)
 	g_roundActive = true;
 	g_canSpawn = true;
 	
+	if(g_1v1_allow)
+	{
+		if( GetAlivePlayersCount(TEAM_BLUE,-1) == 1 && GetAlivePlayersCount(TEAM_RED,-1) == 1)
+		{
+			
+				Start1V1Mode();
+		}
+	}
+	
 	//Rocket's limit
 	g_max_rockets_dynamic = g_max_rockets;
 	if(g_limit_rockets)
@@ -1037,6 +1093,40 @@ public Action OnRoundEnd(Handle event, const char[] name, bool dontBroadcast)
 			AcceptEntityInput(dissolver, "Kill");
 		}
 	}
+	if(g_1v1_allow)
+	{
+		g_1v1_started = false;
+		if(g_1v1_red_beep != null)
+		{
+			CloseHandle(g_1v1_red_beep);
+			g_1v1_red_beep = null;
+		}
+		if(g_1v1_blue_beep != null)
+		{
+			CloseHandle(g_1v1_blue_beep);
+			g_1v1_blue_beep = null;
+		}
+		if(g_1v1_music_played > -1)
+		{
+			char key[4],sndFile[PLATFORM_MAX_PATH];
+			IntToString(g_1v1_music_played,key,sizeof(key));
+		
+			if(GetTrieString(g_1v1_Music,key,sndFile,sizeof(sndFile)))
+			{
+				if(!StrEqual(sndFile, ""))
+				{
+					for(int i=1; i<= MaxClients; i++)
+					{
+						if(IsValidClient(i))
+						{
+							StopSound(i, SNDCHAN_AUTO, sndFile);
+						}
+					}
+				}
+			}  
+		}
+		g_1v1_music_played = -1;
+	}
 	ClearHud();
 	
 	if(g_reloadConfig)
@@ -1046,6 +1136,7 @@ public Action OnRoundEnd(Handle event, const char[] name, bool dontBroadcast)
 		ProcessListeners(false);
 		g_reloadConfig = false;
 	}
+	
 }
 
 /* TF2Items_OnGiveNamedItem_Post()
@@ -1217,11 +1308,44 @@ public Action:OnPlayerDeath(Handle:event, const String:name[], bool:dontBroadcas
 	}
 	
 	//Check for last one alive
-	int aliveTeammates = GetAlivePlayersCount(GetClientTeam(client),client);
+	int victimTeam = GetClientTeam(client);
+	int enemyteam;
+	if(victimTeam == TEAM_RED)
+	{
+		enemyteam = TEAM_BLUE;
+	}
+	else
+	{
+		enemyteam = TEAM_RED;	
+	}
+	int aliveTeammates = GetAlivePlayersCount(victimTeam,client);
+	
+	if(aliveTeammates == 0 && g_1v1_started)
+	{
+		LivesAnnotation(client, 0);
+		LivesAnnotation(GetLastPlayer(enemyteam,-1), 0);
+	}
 	if(aliveTeammates == 1)
 	{
-		EmitRandomSound(g_SndLastAlive,GetLastPlayer(GetClientTeam(client),client));
+		EmitRandomSound(g_SndLastAlive,GetLastPlayer(victimTeam,client));
+		if(g_1v1_allow)
+		{
+			int aliveEnemies;
+			if(victimTeam == TEAM_RED)
+			{
+				aliveEnemies = GetAlivePlayersCount(TEAM_BLUE,-1);
+			}
+			else
+			{
+				aliveEnemies = GetAlivePlayersCount(TEAM_RED,-1);			
+			}
+			if(aliveEnemies == 1)
+			{
+				Start1V1Mode();
+			}
+		}
 	}
+	
 	
 	//Check if we need to crear a big boom
 	int iInflictor = GetEventInt(event, "inflictor_entindex");
@@ -1254,6 +1378,208 @@ public Action ReenableKillSound(Handle timer, int data)
 {
 	g_canEmitKillSound = true;
 }
+
+
+public void Start1V1Mode()
+{
+	if(!g_isDBmap) 
+	{
+		return;
+	}
+	if(g_onPreparation)
+	{
+		return;
+	}
+	g_1v1_started = true;
+	g_1v1_music_played = EmitRandomSound(g_1v1_Music,-1);
+	
+	g_1v1_red_life = g_1v1_lives;
+	g_1v1_blue_life = g_1v1_lives;
+	g_1v1_red_beep = null;
+	g_1v1_blue_beep =  null;
+	LivesAnnotation(GetLastPlayer(TEAM_RED),g_1v1_red_life);
+	LivesAnnotation(GetLastPlayer(TEAM_BLUE),g_1v1_blue_life);
+	for(int i = 0; i < g_max_rockets; i++)
+	{
+		int index = EntRefToEntIndex(g_RocketEnt[i].entity);
+		if (index != INVALID_ENT_REFERENCE)
+		{
+			int dissolver = CreateEntityByName("env_entity_dissolver");
+
+			if (dissolver == -1)  return;
+			
+			DispatchKeyValue(dissolver, "dissolvetype", "3");
+			DispatchKeyValue(dissolver, "magnitude", "250");
+			DispatchKeyValue(dissolver, "target", "!activator");
+
+			AcceptEntityInput(dissolver, "Dissolve", index);
+			AcceptEntityInput(dissolver, "Kill");
+		}
+	}
+	g_canSpawn = false;
+	CreateTimer(10.0,AllowSpawn);
+}
+
+public OnClientPutInServer(client)
+{
+	SDKHook(client, SDKHook_OnTakeDamage, OnClientTakeDamage);
+}
+
+
+public Action OnClientTakeDamage(client, &attacker, &inflictor, &Float:damage, &damagetype, &weapon, Float:damageForce[3], Float:damagePosition[3])
+{
+	if(!g_isDBmap) 
+	{
+		return Plugin_Continue;
+	}
+	if(g_onPreparation)
+	{
+		return Plugin_Continue;
+	}
+
+	if(!g_1v1_started)
+	{
+		return Plugin_Continue;
+	}
+	
+	int rIndex = GetRocketIndex(EntIndexToEntRef(inflictor));
+	if(rIndex >= 0)
+	{	
+		if(GetClientTeam(client) == TEAM_RED)
+		{
+			g_1v1_red_life--;
+			//PrintToChatAll("%N lost a life, now he has %d",client,g_1v1_red_life);
+			LivesAnnotation(client, g_1v1_red_life);
+			if(g_1v1_red_life == 1 && !StrEqual(g_1v1_beep_snd,""))
+			{
+				g_1v1_red_beep = CreateTimer(g_1v1_beep_delay,LifeBeep,GetClientUserId(client),TIMER_REPEAT);
+			}
+			if(g_1v1_red_life > 0)
+			{
+				damage = 0.0;
+				return Plugin_Changed;
+			}
+		}
+		else
+		{
+			g_1v1_blue_life--;
+			//PrintToChatAll("%N lost a life, now he has %d",client,g_1v1_blue_life);
+			LivesAnnotation(client, g_1v1_blue_life);
+			if(g_1v1_blue_life == 1 && !StrEqual(g_1v1_beep_snd,""))
+			{
+				g_1v1_blue_beep = CreateTimer(g_1v1_beep_delay,LifeBeep,GetClientUserId(client),TIMER_REPEAT);
+			}
+			if(g_1v1_blue_life > 0)
+			{
+				damage = 0.0;
+				return Plugin_Changed;
+			}
+		}
+	}
+	
+	return Plugin_Continue;
+}
+
+void LivesAnnotation(int client, int lives)
+{
+	
+	if(!IsValidAliveClient(client))
+	{
+		return;
+	}
+	if(lives == 0)
+	{
+		Handle event = CreateEvent("hide_annotation"); 
+		if(event == INVALID_HANDLE)
+		{
+			return;
+		}
+		SetEventInt(event, "id", MAXROCKETS + client); 
+		FireEvent(event);
+		ClearHud();
+	}
+	else
+	{
+		Handle event = CreateEvent("show_annotation");
+		if(event == INVALID_HANDLE)
+		{
+			return;
+		}
+		SetEventInt(event, "follow_entindex", client);		
+		SetEventFloat(event, "lifetime", 9999.0);
+		SetEventInt(event, "id", MAXROCKETS + client);
+		char livesString[MAX_NAME_LENGTH];
+		Format(livesString,MAX_NAME_LENGTH,"♥");
+		for(int i=2; i <= g_1v1_lives; i++)
+		{
+			if(i <= lives)
+			{
+				Format(livesString,MAX_NAME_LENGTH,"%s ♥",livesString);
+			}
+			else
+			{
+				Format(livesString,MAX_NAME_LENGTH,"%s -",livesString);
+			}
+		}
+		SetEventString(event, "text", livesString);
+		SetEventString(event, "play_sound", "vo/null.mp3");
+		int bitfield = 1;
+		for(int i = 1; i >= MaxClients; i++)
+		{
+			if(IsValidClient(i) && i != client)
+			{
+				bitfield |= RoundFloat(Pow(2.0, float(i)));
+			}
+		}
+		
+		int enemyteam;
+		if(GetClientTeam(client) == TEAM_RED)
+		{
+			enemyteam = TEAM_BLUE;
+		}
+		else
+		{
+			enemyteam = TEAM_RED;	
+		}
+		SetEventInt(event, "visibilityBitfield", 1 << GetLastPlayer(enemyteam,-1));
+		SetEventBool(event,"show_effect", true);
+		FireEvent(event);
+		
+		SetHudTextParams(-1.0, 0.80,9999.0,255,0,0,255, 0, 0.0, 0.0, 0.0);
+		ShowSyncHudText(client, g_HudSyncs[MAXMULTICOLORHUD-1], "%s",livesString);
+	}
+}
+
+/* LifeBeep()
+**
+** If the client is valid, it beeps.
+** -------------------------------------------------------------------------- */
+public Action LifeBeep(Handle timer, int data)
+{
+	if(!g_isDBmap) 
+	{
+		return Plugin_Stop;
+	}
+	if(g_onPreparation)
+	{
+		return Plugin_Stop;
+	}
+
+	if(!g_1v1_started)
+	{
+		return Plugin_Stop;
+	}
+	
+	int client = GetClientOfUserId(data);
+	if(!IsValidClient(client))
+	{
+		return Plugin_Stop;
+	}
+	
+	EmitSoundToClient(client,g_1v1_beep_snd,_,_, SNDLEVEL_TRAIN);
+	return Plugin_Continue;
+}
+
 
 
 /* SearchSpawns()
@@ -2329,6 +2655,10 @@ public OnEntityDestroyed(entity)
 ** -------------------------------------------------------------------------- */
 public CreateExplosion(rIndex)
 {
+	if(g_1v1_started)
+	{
+		return;
+	}
 	int class = g_RocketEnt[rIndex].class;
 	float fPosition[3]; 
 	int index = EntRefToEntIndex(g_RocketEnt[rIndex].entity);
@@ -2517,7 +2847,7 @@ public Action Timer_ShowAnnotation(Handle timer, int rIndex)
 		Format(rocketName,sizeof(rocketName),"%s",auxString);
 	}
 	SetEventString(event, "text", rocketName);
-	SetEventString(event, "play_sound", "vo/null.wav");
+	SetEventString(event, "play_sound", "vo/null.mp3");
 	SetEventInt(event, "visibilityBitfield",1 << client);
 	SetEventBool(event,"show_effect", true);
 	FireEvent(event);
@@ -2717,6 +3047,7 @@ public void ResetCvars()
 	SetConVarInt(db_burstammo, db_burstammo_def);
 	
 	ProcessListeners(true);
+	g_1v1_Music.Clear();
 	g_SndRoundStart.Clear();
 	g_SndOnDeath.Clear();
 	g_SndOnKill.Clear();
@@ -2825,6 +3156,42 @@ void EmitSoundAllDB(int rocketsnd, int rIndex, bool fromEntity)
 	}
 }
 
+/* EmitRandomSound()
+**
+** Emits a random sound from a trie, it will be emitted for everyone is a client isn't passed.
+** -------------------------------------------------------------------------- */
+stock int EmitRandomSound(StringMap sndTrie,client = -1)
+{
+	int trieSize = sndTrie.Size;
+	char key[4], sndFile[PLATFORM_MAX_PATH];
+	int rndSound = GetRandomInt(1,trieSize);
+	IntToString(rndSound,key,sizeof(key));
+
+	if(GetTrieString(sndTrie,key,sndFile,sizeof(sndFile)))
+	{
+		if(StrEqual(sndFile, ""))
+		{
+			return -1;
+		}
+		if(client != -1)
+		{
+			if(IsValidClient(client))
+			{
+				EmitSoundToClient(client,sndFile,_,_, SNDLEVEL_TRAIN);
+			}
+			else
+			{
+				return -1;
+			}
+		}
+		else
+		{
+			EmitSoundToAll(sndFile, _, _, SNDLEVEL_TRAIN);
+		}
+	}
+	return rndSound;
+}
+
 /* GetSndString()
 **
 ** Gets the sound string of the enum passed as argument.
@@ -2888,39 +3255,6 @@ void GetSndString(char[] buffer, int length, int rIndex, int rocketsnd)
 	}
 }
 
-/* EmitRandomSound()
-**
-** Emits a random sound from a trie, it will be emitted for everyone is a client isn't passed.
-** -------------------------------------------------------------------------- */
-stock EmitRandomSound(StringMap sndTrie,client = -1)
-{
-	int trieSize = sndTrie.Size;
-	char key[4], sndFile[PLATFORM_MAX_PATH];
-	IntToString(GetRandomInt(1,trieSize),key,sizeof(key));
-
-	if(GetTrieString(sndTrie,key,sndFile,sizeof(sndFile)))
-	{
-		if(StrEqual(sndFile, ""))
-		{
-			return;
-		}
-		if(client != -1)
-		{
-			if(IsValidClient(client))
-			{
-				EmitSoundToClient(client,sndFile,_,_, SNDLEVEL_TRAIN);
-			}
-			else
-			{
-				return;
-			}
-		}
-		else
-		{
-			EmitSoundToAll(sndFile, _, _, SNDLEVEL_TRAIN);
-		}
-	}
-}
 /* TF2_SwitchtoSlot()
 **
 ** Changes the client's slot to the desired one.
@@ -2954,7 +3288,7 @@ stock void SetCloak(int client, float value)
 ** -------------------------------------------------------------------------- */
 stock bool IsValidAliveClient(int client)
 {
-	if(client < 0 || client > MaxClients || !IsClientConnected(client) ||	!IsClientInGame(client) || !IsPlayerAlive(client))
+	if(client <= 0 || client > MaxClients || !IsClientConnected(client) ||	!IsClientInGame(client) || !IsPlayerAlive(client))
 	{
 		return false;
 	}
@@ -2967,7 +3301,7 @@ stock bool IsValidAliveClient(int client)
 ** -------------------------------------------------------------------------- */
 stock bool IsValidClient(int client)
 {
-	if(client < 0 || client > MaxClients || !IsClientConnected(client) ||	!IsClientInGame(client) )
+	if(client <= 0 || client > MaxClients || !IsClientConnected(client) ||	!IsClientInGame(client) )
 	{
 		return false;
 	}
