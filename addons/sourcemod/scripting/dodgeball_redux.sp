@@ -761,11 +761,17 @@ void LoadConfigs()
 public void PrecacheFiles()
 {
 	//Mod's sounds
-	PrecacheSoundFromTrie(g_1v1_Music);
 	PrecacheSoundFromTrie(g_SndRoundStart);
 	PrecacheSoundFromTrie(g_SndOnDeath);
 	PrecacheSoundFromTrie(g_SndOnKill);
 	PrecacheSoundFromTrie(g_SndLastAlive);
+	//1v1 mode
+	if(!StrEqual(g_1v1_beep_snd,""))	
+	{
+		PrecacheSoundFile(g_1v1_beep_snd);
+	}
+	PrecacheSoundFromTrie(g_1v1_Music);
+	
 	//Multi-colored trails
 	for( int i = 0; i < MAXMULTICOLORHUD; i++)
 	{
@@ -1397,6 +1403,15 @@ public void Start1V1Mode()
 	g_1v1_blue_life = g_1v1_lives;
 	g_1v1_red_beep = null;
 	g_1v1_blue_beep =  null;
+	
+	SetHudTextParams(-1.0, 0.40,7.0,0,255,255,255, 1, 3.0, 1.5, 1.5);
+	for(int i = 1; i <= MaxClients; i++)
+	{
+		if(IsValidClient(i))
+		{
+			ShowSyncHudText(i, g_HudSyncs[MAXMULTICOLORHUD], "Battle between %N vs %N starts in 10 seconds!",GetLastPlayer(TEAM_RED),GetLastPlayer(TEAM_BLUE));
+		}
+	}
 	LivesAnnotation(GetLastPlayer(TEAM_RED),g_1v1_red_life);
 	LivesAnnotation(GetLastPlayer(TEAM_BLUE),g_1v1_blue_life);
 	for(int i = 0; i < g_max_rockets; i++)
@@ -1489,25 +1504,24 @@ void LivesAnnotation(int client, int lives)
 	}
 	if(lives == 0)
 	{
-		Handle event = CreateEvent("hide_annotation"); 
-		if(event == INVALID_HANDLE)
+		for(int i = 1; i <= MaxClients; i++)
 		{
-			return;
+			if(IsValidClient(i) && i != client)
+			{
+				Handle event = CreateEvent("hide_annotation"); 
+				if(event == INVALID_HANDLE)
+				{
+					return;
+				}
+				SetEventInt(event, "id", MAXROCKETS + client * MAXPLAYERS + i); 
+				FireEvent(event);
+			}
 		}
-		SetEventInt(event, "id", MAXROCKETS + client); 
-		FireEvent(event);
 		ClearHud();
 	}
 	else
 	{
-		Handle event = CreateEvent("show_annotation");
-		if(event == INVALID_HANDLE)
-		{
-			return;
-		}
-		SetEventInt(event, "follow_entindex", client);		
-		SetEventFloat(event, "lifetime", 9999.0);
-		SetEventInt(event, "id", MAXROCKETS + client);
+		
 		char livesString[MAX_NAME_LENGTH];
 		Format(livesString,MAX_NAME_LENGTH,"♥");
 		for(int i=2; i <= g_1v1_lives; i++)
@@ -1521,31 +1535,31 @@ void LivesAnnotation(int client, int lives)
 				Format(livesString,MAX_NAME_LENGTH,"%s -",livesString);
 			}
 		}
-		SetEventString(event, "text", livesString);
-		SetEventString(event, "play_sound", "vo/null.mp3");
-		int bitfield = 1;
-		for(int i = 1; i >= MaxClients; i++)
+		
+		for(int i = 1; i <= MaxClients; i++)
 		{
 			if(IsValidClient(i) && i != client)
 			{
-				bitfield |= RoundFloat(Pow(2.0, float(i)));
+				Handle event = CreateEvent("show_annotation");
+				if(event == INVALID_HANDLE)
+				{
+					continue;
+				}
+				SetEventInt(event, "follow_entindex", client);		
+				SetEventFloat(event, "lifetime", 9999.0);
+				SetEventInt(event, "id", MAXROCKETS + client * MAXPLAYERS + i);
+				SetEventString(event, "text", livesString);
+				SetEventString(event, "play_sound", "vo/null.mp3");
+				
+				SetEventInt(event, "visibilityBitfield", 1 << i);
+				SetEventBool(event,"show_effect", true);
+				FireEvent(event);
+		
 			}
 		}
 		
-		int enemyteam;
-		if(GetClientTeam(client) == TEAM_RED)
-		{
-			enemyteam = TEAM_BLUE;
-		}
-		else
-		{
-			enemyteam = TEAM_RED;	
-		}
-		SetEventInt(event, "visibilityBitfield", 1 << GetLastPlayer(enemyteam,-1));
-		SetEventBool(event,"show_effect", true);
-		FireEvent(event);
 		
-		SetHudTextParams(-1.0, 0.80,9999.0,255,0,0,255, 0, 0.0, 0.0, 0.0);
+		SetHudTextParams(-1.0, 0.70,9999.0,255,0,0,255, 0, 0.0, 0.0, 0.0);
 		ShowSyncHudText(client, g_HudSyncs[MAXMULTICOLORHUD-1], "%s",livesString);
 	}
 }
@@ -2875,16 +2889,13 @@ public void HideAnnotation(int rIndex)
 ** -------------------------------------------------------------------------- */
 public void ClearHud()
 {
-	if(useMultiColor() || g_max_rockets == 1)
+	for( int c = 0; c < MAXMULTICOLORHUD; c++)
 	{
-		for( int c = 0; c < g_max_rockets; c++)
+		for(int client = 1; client <= MaxClients; client++)
 		{
-			for(int client = 1; client <= MaxClients; client++)
+			if(IsValidAliveClient(client))
 			{
-				if(IsValidAliveClient(client))
-				{
-					ClearSyncHud(client,g_HudSyncs[c]);
-				}
+				ClearSyncHud(client,g_HudSyncs[c]);
 			}
 		}
 	}
