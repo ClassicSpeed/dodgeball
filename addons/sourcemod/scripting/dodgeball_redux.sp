@@ -1347,7 +1347,7 @@ public Action:OnPlayerDeath(Handle:event, const String:name[], bool:dontBroadcas
 			}
 			if(aliveEnemies == 1)
 			{
-				Start1V1Mode();
+				CreateTimer(0.1,Timer_Start1V1Mode);
 			}
 		}
 	}
@@ -1385,6 +1385,10 @@ public Action ReenableKillSound(Handle timer, int data)
 	g_canEmitKillSound = true;
 }
 
+public Action Timer_Start1V1Mode(Handle timer, int data)
+{
+	Start1V1Mode();
+}
 
 public void Start1V1Mode()
 {
@@ -2822,7 +2826,10 @@ stock PrecacheParticle(String:strParticleName[])
 ** -------------------------------------------------------------------------- */
 public Action Timer_ShowAnnotation(Handle timer, int rIndex)
 {
-	
+	if(g_1v1_started)
+	{
+		return;	
+	}
 	int index = EntRefToEntIndex(g_RocketEnt[rIndex].entity);
 	if (index == INVALID_ENT_REFERENCE)
 	{
