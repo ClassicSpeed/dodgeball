@@ -1466,6 +1466,10 @@ public Action OnClientTakeDamage(client, &attacker, &inflictor, &Float:damage, &
 	{	
 		if(GetClientTeam(client) == TEAM_RED)
 		{
+			if(g_1v1_red_life == 0)
+			{
+				return Plugin_Continue;
+			}
 			g_1v1_red_life--;
 			//PrintToChatAll("%N lost a life, now he has %d",client,g_1v1_red_life);
 			LivesAnnotation(client, g_1v1_red_life);
@@ -1481,6 +1485,10 @@ public Action OnClientTakeDamage(client, &attacker, &inflictor, &Float:damage, &
 		}
 		else
 		{
+			if(g_1v1_blue_life == 0)
+			{
+				return Plugin_Continue;
+			}
 			g_1v1_blue_life--;
 			//PrintToChatAll("%N lost a life, now he has %d",client,g_1v1_blue_life);
 			LivesAnnotation(client, g_1v1_blue_life);
@@ -1621,7 +1629,7 @@ public void SearchSpawns()
 		{
 			g_RedSpawn = EntIndexToEntRef(iEntity);
 		}
-		if ((StrContains(strName, "rocket_spawn_blue") != -1) || (StrContains(strName, "tf_dodgeball_blu") != -1))
+		if ((StrContains(strName, "rocket_spawn_blu") != -1) || (StrContains(strName, "tf_dodgeball_blu") != -1))
 		{
 			g_BlueSpawn = EntIndexToEntRef(iEntity);
 		}
@@ -2060,8 +2068,7 @@ public void FireRocket()
 		
 		// Setup rocket entity.
 		SetEntPropEnt(iEntity, Prop_Send, "m_hOwnerEntity", 0);
-		//ToDo: add "critical" argument on classes
-		//SetEntProp(iEntity,	Prop_Send, "m_bCritical",	 1);
+		SetEntProp(iEntity,	Prop_Send, "m_bCritical",	 1);
 		SetEntProp(iEntity,	Prop_Send, "m_iTeamNum",	 rocketTeam, 1); 
 		SetEntProp(iEntity,	Prop_Send, "m_iDeflected",   1);
 		
@@ -2604,7 +2611,13 @@ public OnEntityDestroyed(entity)
 	{
 		return;
 	}
-	if(entity  == INVALID_ENT_REFERENCE)
+	if(entity  == INVALID_ENT_REFERENCE || !IsValidEntity(entity))
+	{
+		return;
+	}
+	char classname[64];
+	GetEntityClassname(entity, classname, sizeof(classname));
+	if (!StrEqual(classname, "tf_projectile_rocket", false))
 	{
 		return;
 	}
@@ -2641,10 +2654,11 @@ public OnEntityDestroyed(entity)
 
 	}
 	
-	if(g_observer != INVALID_ENT_REFERENCE && g_observer_slot == rIndex)
+	if(g_observer != -1 && g_observer_slot == rIndex)
 	{
+		int entObs = EntRefToEntIndex(g_observer);
 		SetVariantString("");
-		AcceptEntityInput(g_observer, "ClearParent");
+		AcceptEntityInput(entObs, "ClearParent");
 		
 		float opPos[3];
 		float opAng[3];
@@ -2659,7 +2673,7 @@ public OnEntityDestroyed(entity)
 		{
 			GetEntPropVector(spawner,Prop_Data,"m_vecOrigin",opPos);
 			GetEntPropVector(spawner,Prop_Data, "m_angAbsRotation", opAng);
-			TeleportEntity(g_observer, opPos, opAng, NULL_VECTOR);
+			TeleportEntity(entObs, opPos, opAng, NULL_VECTOR);
 		}
 		g_observer_slot = -1;
 	}
