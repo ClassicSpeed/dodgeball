@@ -16,7 +16,7 @@
 #include <dodgeball>
 
 // ---- Defines ----------------------------------------------------------------
-#define DB_VERSION "0.2.3"
+#define DB_VERSION "0.2.4"
 #define PLAYERCOND_SPYCLOAK (1<<4)
 #define MAXGENERIC 25
 #define MAXMULTICOLORHUD 5
