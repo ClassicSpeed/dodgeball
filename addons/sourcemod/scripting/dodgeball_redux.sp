@@ -2963,7 +2963,7 @@ public void RenderHud()
 		GetIntColor(g_hud_color,ncolor);
 		SetHudTextParams(g_hud_x,g_hud_y,30.0,ncolor[0],ncolor[1],ncolor[2],255, 0, 0.0, 0.0, 0.0);
 		
-		GetHudString(strHud, PLATFORM_MAX_PATH, 1, false);
+		GetHudString(strHud, PLATFORM_MAX_PATH, 0, false);
 		
 		for(int client = 1; client <= MaxClients; client++)
 		{
