@@ -725,9 +725,9 @@ void LoadConfigs()
 	if(FileExists(mapfile))
 	{
 		kv =  CreateKeyValues("dodgeball");
-		if(!kv.ImportFromFile(g_mainfile))
+		if(!kv.ImportFromFile(mapfile))
 		{
-			LogMessage("Improper structure for configuration file %s! Since it's a map file it'll be ignored.", g_mainfile);
+			LogMessage("Improper structure for configuration file %s! Since it's a map file it'll be ignored.", mapfile);
 			delete kv;
 			return;
 		}
