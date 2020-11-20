@@ -147,6 +147,8 @@ bool g_class_sound_bounce_play[ROCKETCLASSNUM];
 char g_class_sound_bounce[ROCKETCLASSNUM][PLATFORM_MAX_PATH];
 bool g_class_sound_aimed_play[ROCKETCLASSNUM];
 char g_class_sound_aimed[ROCKETCLASSNUM][PLATFORM_MAX_PATH];
+char g_class_sound_aimed_target[ROCKETCLASSNUM][PLATFORM_MAX_PATH];
+char g_class_sound_aimed_owner[ROCKETCLASSNUM][PLATFORM_MAX_PATH];
 //Explosion
 bool g_class_explosion_create[ROCKETCLASSNUM];
 float g_class_explosion_damage[ROCKETCLASSNUM];
@@ -319,6 +321,12 @@ methodmap RocketClass
 	}
 	public void GetSndAimed(char [] sound, int length) { strcopy(sound, length, g_class_sound_aimed[this.index]); }
 	public void SetSndAimed(char [] sound) { strcopy(g_class_sound_aimed[this.index], PLATFORM_MAX_PATH, sound); }
+	
+	public void GetSndAimedTarget(char [] sound, int length) { strcopy(sound, length, g_class_sound_aimed_target[this.index]); }
+	public void SetSndAimedTarget(char [] sound) { strcopy(g_class_sound_aimed_target[this.index], PLATFORM_MAX_PATH, sound); }
+	
+	public void GetSndAimedOwner(char [] sound, int length) { strcopy(sound, length, g_class_sound_aimed_owner[this.index]); }
+	public void SetSndAimedOwner(char [] sound) { strcopy(g_class_sound_aimed_owner[this.index], PLATFORM_MAX_PATH, sound); }
 	
 	property bool snd_bounce_use
 	{

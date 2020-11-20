@@ -53,6 +53,8 @@ enum
 	rsnd_beep,
 	rsnd_bounce,
 	rsnd_aimed,
+	rsnd_aimed_target,
+	rsnd_aimed_owner,
 	rsnd_exp
 }
 
@@ -377,6 +379,10 @@ void LoadRocketClasses()
 	defClass.snd_aimed_use = !!kv.GetNum("PlayAimedSound",1);
 	kv.GetString("AimedSound",auxPath,PLATFORM_MAX_PATH,"");
 	defClass.SetSndAimed(auxPath);
+	kv.GetString("AimedSoundTarget",auxPath,PLATFORM_MAX_PATH,"");
+	defClass.SetSndAimedTarget(auxPath);
+	kv.GetString("AimedSoundOwner",auxPath,PLATFORM_MAX_PATH,"");
+	defClass.SetSndAimedOwner(auxPath);
 		
 	//Explosion
 	if(kv.JumpToKey("explosion"))
@@ -480,6 +486,12 @@ void LoadRocketClasses()
 		defClass.GetSndAimed(auxPath,PLATFORM_MAX_PATH);
 		kv.GetString("AimedSound",auxPath,PLATFORM_MAX_PATH,auxPath);
 		g_RocketClass[count].SetSndAimed(auxPath);
+		defClass.GetSndAimedTarget(auxPath,PLATFORM_MAX_PATH);
+		kv.GetString("AimedSoundTarget",auxPath,PLATFORM_MAX_PATH,auxPath);
+		g_RocketClass[count].SetSndAimedTarget(auxPath);
+		defClass.GetSndAimedOwner(auxPath,PLATFORM_MAX_PATH);
+		kv.GetString("AimedSoundOwner",auxPath,PLATFORM_MAX_PATH,auxPath);
+		g_RocketClass[count].SetSndAimedOwner(auxPath);
 		
 		//Explosion
 		if(kv.JumpToKey("explosion"))
@@ -846,6 +858,16 @@ public void PrecacheFiles()
 			PrecacheSoundFile(auxPath);
 		}
 		g_RocketClass[i].GetSndAimed(auxPath,PLATFORM_MAX_PATH);
+		if(!StrEqual(auxPath,""))	
+		{
+			PrecacheSoundFile(auxPath);
+		}
+		g_RocketClass[i].GetSndAimedTarget(auxPath,PLATFORM_MAX_PATH);
+		if(!StrEqual(auxPath,""))	
+		{
+			PrecacheSoundFile(auxPath);
+		}
+		g_RocketClass[i].GetSndAimedOwner(auxPath,PLATFORM_MAX_PATH);
 		if(!StrEqual(auxPath,""))	
 		{
 			PrecacheSoundFile(auxPath);
@@ -2490,7 +2512,7 @@ public void OnGameFrame()
 			{
 				fDirection[2] = g_RocketClass[class].elevatemin;
 			}
-			GetVectorAngles(fDirection,fAngles);
+			GetVectorAngles(fDirection, fAngles);
 			SetEntPropVector(index, Prop_Send, "m_angRotation", fAngles);
 			//Fix the rocket skin?
 			int rTeam = GetEntProp(index, Prop_Send, "m_iTeamNum", 1);
@@ -2512,22 +2534,14 @@ public void OnGameFrame()
 			{
 				CreateTimer(0.1,Timer_ShowAnnotation,i);
 			}
-			EmitSoundClientDB(g_RocketEnt[i].target, rsnd_alert ,i,false);
-			if(g_RocketEnt[i].aimed && g_RocketClass[class].snd_aimed_use)
+			EmitSoundClientDB(g_RocketEnt[i].target, rsnd_alert, i,false);
+			if (rTeam == TEAM_RED)
 			{
-				EmitSoundAllDB(rsnd_aimed,i,false);
+				EmitSoundAllDB(rsnd_bludeflect, i, true);
 			}
 			else
 			{
-				//int rTeam = GetEntProp(index, Prop_Send, "m_iTeamNum", 1);
-				if(rTeam == TEAM_RED)
-				{
-					EmitSoundAllDB(rsnd_bludeflect,i,true);
-				}
-				else
-				{
-					EmitSoundAllDB(rsnd_reddeflect,i,true);
-				}
+				EmitSoundAllDB(rsnd_reddeflect, i, true);
 			}
 			g_RocketEnt[i].homing = false;
 			g_RocketEnt[i].owner = GetEntPropEnt(index, Prop_Send, "m_hOwnerEntity");
@@ -2537,6 +2551,11 @@ public void OnGameFrame()
 				GetIntColor(g_hud_aimed_color,ncolor);
 				SetHudTextParams(-1.0,-1.0,2.5,ncolor[0],ncolor[1],ncolor[2],255, 1, 0.0, 0.5, 0.5);
 				ShowSyncHudText(g_RocketEnt[i].owner, g_HudSyncs[MAXHUDNUMBER-1], "%s",g_hud_aimed_text);
+				
+				//Sounds for super shot
+				EmitSoundAllDB(rsnd_aimed, i, false);
+				EmitSoundClientDB(g_RocketEnt[i].target, rsnd_aimed_target, i, false);
+				EmitSoundClientDB(g_RocketEnt[i].owner, rsnd_aimed_owner, i, false);
 			}
 			CreateTimer(g_RocketClass[class].deflectdelay,EnableHoming,i);
 			RenderHud();
@@ -3321,6 +3340,20 @@ void GetSndString(char[] buffer, int length, int rIndex, int rocketsnd)
 		if(g_RocketClass[class].snd_aimed_use)
 		{
 			g_RocketClass[class].GetSndAimed(buffer,length);
+		}
+	}
+	else if(rocketsnd == rsnd_aimed_target)
+	{
+		if(g_RocketClass[class].snd_aimed_use)
+		{
+			g_RocketClass[class].GetSndAimedTarget(buffer,length);
+		}
+	}
+	else if(rocketsnd == rsnd_aimed_owner)
+	{
+		if(g_RocketClass[class].snd_aimed_use)
+		{
+			g_RocketClass[class].GetSndAimedOwner(buffer,length);
 		}
 	}
 	else if(rocketsnd == rsnd_bounce)
