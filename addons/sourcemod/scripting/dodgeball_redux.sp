@@ -9,6 +9,7 @@
 #include <tf2items>
 #include <tf2attributes>
 #include <SteamWorks>
+#include <morecolors>
 
 //I use this so the compiler will warn about the old syntax
 //#pragma newdecls required
@@ -16,7 +17,7 @@
 #include <dodgeball>
 
 // ---- Defines ----------------------------------------------------------------
-#define DB_VERSION "0.2.4"
+#define DB_VERSION "0.3.0"
 #define PLAYERCOND_SPYCLOAK (1<<4)
 #define MAXGENERIC 25
 #define MAXMULTICOLORHUD 5
@@ -93,6 +94,7 @@ float g_hud_y;
 char g_hud_color[32];
 char g_hud_aimed_text[PLATFORM_MAX_PATH];
 char g_hud_aimed_color[32];
+bool g_print_kills;
 
 //Multi rocket color
 bool g_allow_multirocketcolor;
@@ -105,6 +107,7 @@ bool g_mrc_use_light[MAXMULTICOLORHUD];
 
 //1v1 Mode
 bool g_1v1_allow;
+float g_1v1_start_at;
 int g_1v1_lives;
 char g_1v1_beep_snd[PLATFORM_MAX_PATH];
 float g_1v1_beep_delay;
@@ -164,6 +167,8 @@ public void OnPluginStart()
 	CreateConVar("sm_db_version", DB_VERSION, "Dogdeball Redux Version.", FCVAR_REPLICATED | FCVAR_SPONLY | FCVAR_DONTRECORD | FCVAR_NOTIFY);
 	
 	//Commands
+	RegAdminCmd("sm_1v1", Command_1v1, ADMFLAG_ROOT,"Enables 1v1 for the rest of the map.");
+	RegAdminCmd("sm_no1v1", Command_no1v1, ADMFLAG_ROOT,"Disables 1v1 for the rest of the map.");
 	RegAdminCmd("sm_reloaddb", Command_ReloadConfig, ADMFLAG_ROOT ,"Reload the dodgeball's configs on round end.");
 	
 	//Creation of Tries
@@ -262,15 +267,26 @@ public void OnMapEnd()
 	ResetCvars();
 }
 
-
-
 public Action Command_ReloadConfig(client,args)
 {
 	g_reloadConfig = true;
 	ReplyToCommand(client,"[DB] Dodgeball's configuration will be reloaded on the next round.");
 	return Plugin_Continue;
 }
-	
+
+public Action Command_1v1(client,args)
+{
+	g_1v1_allow = true;
+	ReplyToCommand(client,"[DB] 1v1 will be enabled on the next round.");
+	return Plugin_Continue;
+}
+
+public Action Command_no1v1(client,args)
+{
+	g_1v1_allow = false;
+	ReplyToCommand(client,"[DB] 1v1 will be disabled on the next round.");
+	return Plugin_Continue;
+}
 	
 /* LoadRocketClasses()
 **
@@ -533,7 +549,7 @@ void LoadConfigs()
 	kv.GetString("color",g_hud_color,32,"63 255 127");
 	kv.GetString("supershottext",g_hud_aimed_text,PLATFORM_MAX_PATH,"Super Shot!");
 	kv.GetString("supershotcolor",g_hud_aimed_color,32,"63 255 127");
-	
+	g_print_kills = !!kv.GetNum("printkills",1);
 	//Spawner limits and chances
 	if(kv.JumpToKey("spawner"))
 	{
@@ -581,6 +597,7 @@ void LoadConfigs()
 	if(kv.JumpToKey("1v1mode"))
 	{
 		g_1v1_allow = !!kv.GetNum("Allow1v1",1);
+		g_1v1_start_at = kv.GetFloat("StartAt", 5.0);
 		if(kv.JumpToKey("Lives"))
 		{
 			g_1v1_lives = kv.GetNum("Lives",3);
@@ -1312,7 +1329,25 @@ public Action:OnPlayerDeath(Handle:event, const String:name[], bool:dontBroadcas
 		g_canEmitKillSound = false;
 		CreateTimer(g_OnKillDelay, ReenableKillSound);
 	}
-	
+	if (g_print_kills && IsValidClient(client))
+	{
+		int iInflictor = GetEventInt(event, "inflictor_entindex");
+		int rIndex = GetRocketIndex(EntIndexToEntRef(iInflictor));
+		if (rIndex >= 0)
+		{
+			int reflects = g_RocketEnt[rIndex].deflects;
+			char  speed[MAX_NAME_LENGTH] = "-";
+			Format(speed,MAX_NAME_LENGTH,"%.0f",g_RocketEnt[rIndex].speed);
+			if(GetClientTeam(client) == TEAM_RED)
+			{
+				CPrintToChatAll("{black}[DB] {skyblue}%N {DEFAULT}killed {red}%.20N {DEFAULT}with {green}%.i {white}deflects at {green}%s {DEFAULT}HU/s!", killer, client, reflects, speed);
+			}
+			else
+			{
+				CPrintToChatAll("{black}[DB] {red}%N {DEFAULT}killed {skyblue}%.20N {DEFAULT}with {green}%.i {white}deflects at {green}%s {DEFAULT}HU/s!", killer, client, reflects, speed);
+			}
+		}
+	}
 	//Check for last one alive
 	int victimTeam = GetClientTeam(client);
 	int enemyteam;
@@ -1413,7 +1448,7 @@ public void Start1V1Mode()
 	{
 		if(IsValidClient(i))
 		{
-			ShowSyncHudText(i, g_HudSyncs[MAXMULTICOLORHUD], "Battle between %N vs %N starts in 10 seconds!",GetLastPlayer(TEAM_RED),GetLastPlayer(TEAM_BLUE));
+			ShowSyncHudText(i, g_HudSyncs[MAXMULTICOLORHUD], "%N VS %N",GetLastPlayer(TEAM_RED),GetLastPlayer(TEAM_BLUE));
 		}
 	}
 	LivesAnnotation(GetLastPlayer(TEAM_RED),g_1v1_red_life);
@@ -1436,7 +1471,7 @@ public void Start1V1Mode()
 		}
 	}
 	g_canSpawn = false;
-	CreateTimer(10.0,AllowSpawn);
+	CreateTimer(g_1v1_start_at,AllowSpawn);
 }
 
 public OnClientPutInServer(client)
@@ -1471,7 +1506,6 @@ public Action OnClientTakeDamage(client, &attacker, &inflictor, &Float:damage, &
 				return Plugin_Continue;
 			}
 			g_1v1_red_life--;
-			//PrintToChatAll("%N lost a life, now he has %d",client,g_1v1_red_life);
 			LivesAnnotation(client, g_1v1_red_life);
 			if(g_1v1_red_life == 1 && !StrEqual(g_1v1_beep_snd,""))
 			{
@@ -1490,7 +1524,6 @@ public Action OnClientTakeDamage(client, &attacker, &inflictor, &Float:damage, &
 				return Plugin_Continue;
 			}
 			g_1v1_blue_life--;
-			//PrintToChatAll("%N lost a life, now he has %d",client,g_1v1_blue_life);
 			LivesAnnotation(client, g_1v1_blue_life);
 			if(g_1v1_blue_life == 1 && !StrEqual(g_1v1_beep_snd,""))
 			{
