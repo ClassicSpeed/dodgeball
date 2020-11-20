@@ -8,7 +8,7 @@
 #include <tf2>
 #include <tf2items>
 #include <tf2attributes>
-#include <steamtools>
+#include <SteamWorks>
 
 //I use this so the compiler will warn about the old syntax
 //#pragma newdecls required
@@ -161,7 +161,7 @@ public Plugin myinfo =
 public void OnPluginStart()
 {
 	//Cvars
-	CreateConVar("sm_db_version", DB_VERSION, "Dogdeball Redux Version.", FCVAR_REPLICATED | FCVAR_PLUGIN | FCVAR_SPONLY | FCVAR_DONTRECORD | FCVAR_NOTIFY);
+	CreateConVar("sm_db_version", DB_VERSION, "Dogdeball Redux Version.", FCVAR_REPLICATED | FCVAR_SPONLY | FCVAR_DONTRECORD | FCVAR_NOTIFY);
 	
 	//Commands
 	RegAdminCmd("sm_reloaddb", Command_ReloadConfig, ADMFLAG_ROOT ,"Reload the dodgeball's configs on round end.");
@@ -228,7 +228,7 @@ public void OnMapStart()
 		LogMessage("[DB] Dodgeball map detected. Enabling Dodgeball Gamemode.");
 		g_isDBmap = true;
 		g_reloadConfig = false;
-		Steam_SetGameDescription("Dodgeball Redux");
+		SteamWorks_SetGameDescription("Dodgeball Redux");
 		AddServerTag("dodgeball");
 		
 		LoadRocketClasses();
@@ -243,7 +243,7 @@ public void OnMapStart()
 		LogMessage("[DB] Current map is not a Dodgeball map. Disabling Dodgeball Gamemode.");
 		RemoveServerTag("dodgeball");
 		g_isDBmap = false;
-		Steam_SetGameDescription("Team Fortress");	
+		SteamWorks_SetGameDescription("Team Fortress");	
 	}
 }
 
@@ -1220,7 +1220,7 @@ public Action OnPlayerInventory(Handle event, const char[] name, bool dontBroadc
 				}
 				if(!replace_primary)
 				{
-					TF2Attrib_SetByDefIndex(wep_ent, 254, 4.0);
+					TF2Attrib_SetByDefIndex(wep_ent, 823, 1.0);
 				}
 			}
 			else
@@ -1237,7 +1237,7 @@ public Action OnPlayerInventory(Handle event, const char[] name, bool dontBroadc
 		TF2Items_SetItemIndex(hItem, 21);
 		TF2Items_SetLevel(hItem, 69);
 		TF2Items_SetQuality(hItem, 6);
-		TF2Items_SetAttribute(hItem, 0, 254, 4.0); //Can't push other players
+		TF2Items_SetAttribute(hItem, 0, 823, 1.0); //Can't push other players
 		TF2Items_SetNumAttributes(hItem, 1);
 		int iWeapon = TF2Items_GiveNamedItem(client, hItem);
 		CloseHandle(hItem);
@@ -2031,16 +2031,18 @@ public void FireRocket()
 	int rIndex = GetRocketSlot();
 	if(rIndex == -1) return;
 	
-	int spawner, rocketTeam;
+	int spawner, rocketTeam, skin_color;
 	if(g_lastSpawned == TEAM_RED)
 	{
 		rocketTeam = TEAM_BLUE;
 		spawner = g_BlueSpawn;
+		skin_color = 0;
 	}
 	else
 	{
 		rocketTeam = TEAM_RED;
 		spawner = g_RedSpawn;
+		skin_color = 1;
 	}
 	
 	int iEntity = CreateEntityByName( "tf_projectile_rocket");
@@ -2070,6 +2072,7 @@ public void FireRocket()
 		SetEntPropEnt(iEntity, Prop_Send, "m_hOwnerEntity", 0);
 		SetEntProp(iEntity,	Prop_Send, "m_bCritical",	 1);
 		SetEntProp(iEntity,	Prop_Send, "m_iTeamNum",	 rocketTeam, 1); 
+		SetEntProp(iEntity, Prop_Send, "m_nSkin", skin_color);
 		SetEntProp(iEntity,	Prop_Send, "m_iDeflected",   1);
 		
 		float aux_mul = g_RocketClass[class].speed;
@@ -2079,7 +2082,7 @@ public void FireRocket()
 		fVelocity[2] = fDirection[2]*aux_mul;
 		TeleportEntity(iEntity, fPosition, fAngles, fVelocity);
 		
-		SetEntDataFloat(iEntity, FindSendPropOffs("CTFProjectile_Rocket", "m_iDeflected") + 4, g_RocketClass[class].damage, true);
+		SetEntDataFloat(iEntity, FindSendPropInfo("CTFProjectile_Rocket", "m_iDeflected") + 4, g_RocketClass[class].damage, true);
 		DispatchSpawn(iEntity);
 		
 		char auxPath[PLATFORM_MAX_PATH];
@@ -2454,6 +2457,17 @@ public void OnGameFrame()
 			}
 			GetVectorAngles(fDirection,fAngles);
 			SetEntPropVector(index, Prop_Send, "m_angRotation", fAngles);
+			//Fix the rocket skin?
+			int rTeam = GetEntProp(index, Prop_Send, "m_iTeamNum", 1);
+			if(rTeam == TEAM_RED)
+			{
+				SetEntProp(index, Prop_Send, "m_nSkin", 1);
+			}
+			else
+			{
+				SetEntProp(index, Prop_Send, "m_nSkin", 0);
+			}
+			//End fix
 			g_RocketEnt[i].SetDirection(fDirection);
 			
 			g_RocketEnt[i].target = SearchTarget(i);
@@ -2470,7 +2484,7 @@ public void OnGameFrame()
 			}
 			else
 			{
-				int rTeam = GetEntProp(index, Prop_Send, "m_iTeamNum", 1);
+				//int rTeam = GetEntProp(index, Prop_Send, "m_iTeamNum", 1);
 				if(rTeam == TEAM_RED)
 				{
 					EmitSoundAllDB(rsnd_bludeflect,i,true);
@@ -2538,7 +2552,7 @@ public void OnGameFrame()
 			}
 			
 			float damage = g_RocketClass[class].damage + g_RocketClass[class].damageinc * g_RocketEnt[i].deflects;
-			SetEntDataFloat(index, FindSendPropOffs("CTFProjectile_Rocket", "m_iDeflected") + 4, damage, true);	
+			SetEntDataFloat(index, FindSendPropInfo("CTFProjectile_Rocket", "m_iDeflected") + 4, damage, true);	
 			
 			if(g_RocketClass[class].size > 0.0 && g_RocketClass[class].sizeinc > 0.0)
 			{
