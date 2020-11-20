@@ -1336,15 +1336,17 @@ public Action:OnPlayerDeath(Handle:event, const String:name[], bool:dontBroadcas
 		if (rIndex >= 0)
 		{
 			int reflects = g_RocketEnt[rIndex].deflects;
-			char  speed[MAX_NAME_LENGTH] = "-";
+			char rocketName[MAX_NAME_LENGTH],speed[MAX_NAME_LENGTH] = "-";
+			int class = g_RocketEnt[rIndex].class;
+			g_RocketClass[class].GetName(rocketName,sizeof(rocketName));
 			Format(speed,MAX_NAME_LENGTH,"%.0f",g_RocketEnt[rIndex].speed);
 			if(GetClientTeam(client) == TEAM_RED)
 			{
-				CPrintToChatAll("{black}[DB] {skyblue}%N {DEFAULT}killed {red}%.20N {DEFAULT}with {green}%.i {white}deflects at {green}%s {DEFAULT}HU/s!", killer, client, reflects, speed);
+				CPrintToChatAll("{skyblue}%N {DEFAULT}killed {red}%.20N {DEFAULT}with a {green}%s{DEFAULT} ({gold}%s{DEFAULT} HM/s, {gold}%.i{DEFAULT} Def{DEFAULT}).", killer, client, rocketName, speed, reflects);
 			}
 			else
 			{
-				CPrintToChatAll("{black}[DB] {red}%N {DEFAULT}killed {skyblue}%.20N {DEFAULT}with {green}%.i {white}deflects at {green}%s {DEFAULT}HU/s!", killer, client, reflects, speed);
+				CPrintToChatAll("{red}%N {DEFAULT}killed {skyblue}%.20N {DEFAULT}with a {green}%s{DEFAULT} ({gold}%s{DEFAULT} HM/s, {gold}%.i{DEFAULT} Def{DEFAULT}).", killer, client, rocketName, speed, reflects);
 			}
 		}
 	}
