@@ -114,6 +114,7 @@ methodmap RocketEnt
 char g_class_name[ROCKETCLASSNUM][MAX_NAME_LENGTH];
 char g_class_trail[ROCKETCLASSNUM][PLATFORM_MAX_PATH];
 char g_class_model[ROCKETCLASSNUM][PLATFORM_MAX_PATH];
+bool g_class_animated[ROCKETCLASSNUM];
 float g_class_size[ROCKETCLASSNUM];
 float g_class_size_inc[ROCKETCLASSNUM];
 float g_class_damage[ROCKETCLASSNUM];
@@ -178,6 +179,12 @@ methodmap RocketClass
 	
 	public void GetModel(char [] model, int length) { strcopy(model, length, g_class_model[this.index]); }
 	public void SetModel(char [] model) { strcopy(g_class_model[this.index], PLATFORM_MAX_PATH, model); }
+	
+	property bool animated
+	{
+		public get() { return g_class_animated[ this.index ]; }
+		public set( bool tClosest ) { g_class_animated[ this.index ] = tClosest; }
+	}
 	
 	property float size
 	{

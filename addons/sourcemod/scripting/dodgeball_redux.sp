@@ -326,6 +326,7 @@ void LoadRocketClasses()
 	//Model
 	kv.GetString("Model",auxPath,PLATFORM_MAX_PATH,"");
 	defClass.SetModel(auxPath);
+	defClass.animated = !!kv.GetNum("Animated",0);
 	defClass.size = kv.GetFloat("ModelSize",1.0);
 	defClass.sizeinc = kv.GetFloat("DeflectSizeInc",0.0);
 	//Damage
@@ -426,6 +427,7 @@ void LoadRocketClasses()
 		defClass.GetModel(auxPath,PLATFORM_MAX_PATH);
 		kv.GetString("Model",auxPath,PLATFORM_MAX_PATH,auxPath);
 		g_RocketClass[count].SetModel(auxPath);
+		g_RocketClass[count].animated = !!kv.GetNum("Animated",defClass.animated);
 		g_RocketClass[count].size = kv.GetFloat("ModelSize",defClass.size);
 		g_RocketClass[count].sizeinc = kv.GetFloat("DeflectSizeInc",defClass.sizeinc);
 		//Damage
@@ -2104,10 +2106,10 @@ public void FireRocket()
 		skin_color = 1;
 	}
 	
-	int iEntity = CreateEntityByName( "tf_projectile_rocket");
+	int class = GetRandomRocketClass();
+	int iEntity = CreateEntityByName(g_RocketClass[class].animated ? "tf_projectile_sentryrocket" : "tf_projectile_rocket");
 	if(iEntity && IsValidEntity(iEntity))
 	{
-		int class = GetRandomRocketClass();
 		g_RocketEnt[rIndex].entity = EntIndexToEntRef(iEntity);
 		g_RocketEnt[rIndex].class = class;
 		g_RocketEnt[rIndex].bounces = 0;
@@ -2698,7 +2700,7 @@ public OnEntityDestroyed(entity)
 	}
 	char classname[64];
 	GetEntityClassname(entity, classname, sizeof(classname));
-	if (!StrEqual(classname, "tf_projectile_rocket", false))
+	if (!StrEqual(classname, "tf_projectile_rocket", false) && !StrEqual(classname, "tf_projectile_sentryrocket", false))
 	{
 		return;
 	}
