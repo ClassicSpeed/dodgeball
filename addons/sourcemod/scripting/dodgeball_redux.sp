@@ -231,7 +231,7 @@ public void OnMapStart()
 {
 	char mapname[128];
 	GetCurrentMap(mapname, sizeof(mapname));
-	if (strncmp(mapname, "db_", 3, false) == 0 || (strncmp(mapname, "tfdb_", 5, false) == 0) )
+	if (strncmp(mapname, "db_", 3, false) == 0 || (strncmp(mapname, "tfdb_", 5, false) == 0) || strncmp(mapname, "workshop/db_", 12, false) == 0 || (strncmp(mapname, "workshop/tfdb_", 14, false) == 0))
 	{
 		LogMessage("[DB] Dodgeball map detected. Enabling Dodgeball Gamemode.");
 		g_isDBmap = true;
