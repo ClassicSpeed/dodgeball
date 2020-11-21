@@ -1619,7 +1619,8 @@ void LivesAnnotation(int client, int lives)
 					continue;
 				}
 				SetEventInt(event, "follow_entindex", client);		
-				SetEventFloat(event, "lifetime", 9999.0);
+				float lifetime = IsValidAliveClient(i) ? g_spawn_delay:9999.0;
+				SetEventFloat(event, "lifetime", lifetime);
 				SetEventInt(event, "id", MAXROCKETS + client * MAXPLAYERS + i);
 				SetEventString(event, "text", livesString);
 				SetEventString(event, "play_sound", "vo/null.mp3");
