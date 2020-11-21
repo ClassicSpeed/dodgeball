@@ -17,7 +17,7 @@
 #include <dodgeball>
 
 // ---- Defines ----------------------------------------------------------------
-#define DB_VERSION "0.3.0"
+#define DB_VERSION "0.3.1"
 #define PLAYERCOND_SPYCLOAK (1<<4)
 #define MAXGENERIC 25
 #define MAXMULTICOLORHUD 5
@@ -97,6 +97,7 @@ char g_hud_color[32];
 char g_hud_aimed_text[PLATFORM_MAX_PATH];
 char g_hud_aimed_color[32];
 bool g_print_kills;
+bool g_prefer_hint;
 
 //Multi rocket color
 bool g_allow_multirocketcolor;
@@ -562,6 +563,7 @@ void LoadConfigs()
 	kv.GetString("supershottext",g_hud_aimed_text,PLATFORM_MAX_PATH,"Super Shot!");
 	kv.GetString("supershotcolor",g_hud_aimed_color,32,"63 255 127");
 	g_print_kills = !!kv.GetNum("printkills",1);
+	g_prefer_hint = !!kv.GetNum("preferhint",1);
 	//Spawner limits and chances
 	if(kv.JumpToKey("spawner"))
 	{
@@ -2530,6 +2532,7 @@ public void OnGameFrame()
 			g_RocketEnt[i].target = SearchTarget(i);
 			g_RocketEnt[i].deflects++;
 			g_RocketEnt[i].bounces = 0;
+			g_RocketEnt[i].speed = CalculateRocketSpeed(class, i);	
 			if(g_annotation_show)
 			{
 				CreateTimer(0.1,Timer_ShowAnnotation,i);
@@ -2596,14 +2599,7 @@ public void OnGameFrame()
 			float fAngles[3]; GetVectorAngles(rocketDirection, fAngles);
 			float fVelocity[3]; CopyVectors(rocketDirection, fVelocity);
 			
-			if(aux_mul == 0.0)
-			{
-				aux_mul = g_RocketClass[class].speed + g_RocketClass[class].speedinc * g_RocketEnt[i].deflects;
-			}
-			if(g_RocketClass[class].allowaimed && g_RocketEnt[i].aimed)
-			{
-				aux_mul *= g_RocketClass[class].aimedspeed;
-			}
+			aux_mul = CalculateRocketSpeed(class, i);			
 			
 			float damage = g_RocketClass[class].damage + g_RocketClass[class].damageinc * g_RocketEnt[i].deflects;
 			SetEntDataFloat(index, FindSendPropInfo("CTFProjectile_Rocket", "m_iDeflected") + 4, damage, true);	
@@ -2623,6 +2619,23 @@ public void OnGameFrame()
 		
 	}
 }
+
+
+/* CalculateRocketSpeed()
+**
+** Calculate rocket speed based on class 
+** -------------------------------------------------------------------------- */
+public float CalculateRocketSpeed( int class, int rocketEnt)
+{
+	float speed = 0.0;
+	speed = g_RocketClass[class].speed + g_RocketClass[class].speedinc * g_RocketEnt[rocketEnt].deflects;
+	if(g_RocketClass[class].allowaimed && g_RocketEnt[rocketEnt].aimed)
+	{
+		speed *= g_RocketClass[class].aimedspeed;
+	}
+	return speed;	
+}
+
 
 /* EnableHoming()
 **
@@ -3000,8 +3013,25 @@ public void RenderHud()
 	{
 		return;
 	}
+	if(g_max_rockets_dynamic <= 0)
+	{
+		return;
+	}
+	//Hint (only print if there is a rocket in game)
+	if(g_prefer_hint && g_max_rockets_dynamic == 1 )
+	{
+		int rIndex = GetRocketSlot();
+		if(rIndex != -1) 
+		{
+			return;
+		}
+		
+		char strHud[PLATFORM_MAX_PATH];		
+		GetHudString(strHud, PLATFORM_MAX_PATH, 0, true);		
+		PrintHintTextToAll("%s", strHud);
+	}
 	//Multi Color hud
-	if(useMultiColor())
+	else if(useMultiColor())
 	{
 		int ncolor[3];
 		char strHud[PLATFORM_MAX_PATH];
@@ -3040,7 +3070,7 @@ public void RenderHud()
 				ShowSyncHudText(client, g_HudSyncs[0], "%s",strHud);
 			}
 		}
-	
+		
 	}
 }
 
@@ -3091,7 +3121,7 @@ void GetHudString(char[] strHud, int length, int rIndex, bool twoLines)
 	}
 	if(twoLines)
 	{
-		Format(strHud, length, "<- %s | Defs: %s \n-> %s | S: %s",owner,deflects,target,speed);
+		Format(strHud, length, "%s --> %s\nS: %s | Defs: %s",owner,target,speed,deflects);
 	}
 	else
 	{
