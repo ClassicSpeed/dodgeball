@@ -17,7 +17,7 @@
 #include <dodgeball>
 
 // ---- Defines ----------------------------------------------------------------
-#define DB_VERSION "0.3.1"
+#define DB_VERSION "0.3.2"
 #define PLAYERCOND_SPYCLOAK (1<<4)
 #define MAXGENERIC 25
 #define MAXMULTICOLORHUD 5
@@ -26,6 +26,7 @@
 #define TEAM_BLUE 3
 #define CLASS_PYRO 7
 #define CLASS_SPY 8
+#define DAMAGEBITS_DEFLECTED_ROCKET 3407936
 
 #define SOUND_ALERT_VOL	0.8
 #define HUD_LINE_SEPARATION 0.04
@@ -263,6 +264,13 @@ public void OnMapEnd()
 {
 	g_roundActive = false;
 	g_isDBmap = false;
+	UnhookEvent("teamplay_round_start", OnPrepartionStart);
+	UnhookEvent("arena_round_start", OnRoundStart); 
+	UnhookEvent("post_inventory_application", OnPlayerInventory);
+	UnhookEvent("player_spawn", OnPlayerSpawn);
+	UnhookEvent("player_death", OnPlayerDeath, EventHookMode_Post);
+	UnhookEvent("teamplay_round_win", OnRoundEnd);
+	UnhookEvent("teamplay_round_stalemate", OnRoundEnd);
 	for(int i = 0; i < MAXROCKETS; i++)
 	{
 		g_RocketEnt[i].entity = INVALID_ENT_REFERENCE;
@@ -1415,18 +1423,6 @@ public Action:OnPlayerDeath(Handle:event, const String:name[], bool:dontBroadcas
 		}
 	}
 	
-	
-	//Check if we need to crear a big boom
-	int iInflictor = GetEventInt(event, "inflictor_entindex");
-	int rIndex = GetRocketIndex(EntIndexToEntRef(iInflictor));
-	if(rIndex >= 0)
-	{	
-		int class = g_RocketEnt[rIndex].class;
-		if(g_RocketClass[class].exp_use)
-		{
-			CreateExplosion(rIndex);
-		}
-	}
 	//Check if the max num of rockets has to be limited.
 	if(g_limit_rockets)
 	{
@@ -2344,10 +2340,7 @@ public Action RocketBeep(Handle timer, int rIndex)
 
 public Action OnStartTouch(int entity, int other)
 {
-	if (other > 0 && other <= MaxClients)
-	{
-		return Plugin_Continue;
-	}
+	
 		
 	int ref = EntIndexToEntRef(entity);	
 	int rIndex = GetRocketIndex(ref);
@@ -2355,16 +2348,26 @@ public Action OnStartTouch(int entity, int other)
 		return Plugin_Continue;
 	
 	int class = g_RocketEnt[rIndex].class;	
-	
-	//We check the bounce counter
-	if (g_RocketEnt[rIndex].bounces >= g_RocketClass[class].maxbounce)
+	if(g_RocketClass[class].exp_use)
 	{
-		if(g_RocketClass[class].exp_use)
-		{
-			CreateExplosion(rIndex);
+		//Check if it's a player
+		if (other > 0 && other <= MaxClients)
+		{	
+			if(GetClientTeam(g_RocketEnt[rIndex].target) == GetClientTeam(other)){
+				CreateExplosion(rIndex, entity);
+				return Plugin_Continue;
+			}
+			
 		}
-		return Plugin_Continue;
+		//We check the bounce counter
+		if (g_RocketEnt[rIndex].bounces >= g_RocketClass[class].maxbounce)
+		{
+			CreateExplosion(rIndex, entity);
+			return Plugin_Continue;
+		}
 	}
+	
+	
 	
 	SDKHook(entity, SDKHook_Touch, OnTouch);
 	return Plugin_Handled;
@@ -2769,7 +2772,7 @@ public OnEntityDestroyed(entity)
 ** Creates a huge shockwave at the location of the client, with the given
 ** parameters.
 ** -------------------------------------------------------------------------- */
-public CreateExplosion(rIndex)
+public CreateExplosion(rIndex, rEntity)
 {
 	if(g_1v1_started)
 	{
@@ -2829,12 +2832,9 @@ public CreateExplosion(rIndex)
 					iFinalDamage = RoundToFloor(fImpact * g_RocketClass[class].exp_damage);
 				}
 				ScaleVector(fImpulse, fFinalPush);
-				SetEntPropVector(iClient, Prop_Data, "m_vecAbsVelocity", fImpulse);
 				
-				Handle hDamage = CreateDataPack();
-				WritePackCell(hDamage, iClient);
-				WritePackCell(hDamage, iFinalDamage);
-				CreateTimer(0.1, ApplyDamage, hDamage, TIMER_FLAG_NO_MAPCHANGE);
+				SetEntPropVector(iClient, Prop_Data, "m_vecAbsVelocity", fImpulse);
+				ApplyDamage(iClient, rEntity, g_RocketEnt[rIndex].owner, iFinalDamage);
 			}
 		}
 	}
@@ -2845,17 +2845,15 @@ public CreateExplosion(rIndex)
 **
 ** Applies a damage to a player.
 ** -------------------------------------------------------------------------- */
-public Action:ApplyDamage(Handle:hTimer, any:hDataPack)
+public ApplyDamage(iClient, rEntity, iAttacker, iDamage)
 {
-    ResetPack(hDataPack, false);
-    int  iClient = ReadPackCell(hDataPack);
-    int iDamage = ReadPackCell(hDataPack);
-    CloseHandle(hDataPack);
-    if(IsValidAliveClient(iClient))
+    if(IsValidAliveClient(iClient) && IsValidClient(iAttacker))
     {
-    	SlapPlayer(iClient, iDamage, true);
-    }
+		SlapPlayer(iClient, 0, true);
+		SDKHooks_TakeDamage(iClient, EntRefToEntIndex(rEntity), iAttacker, float(iDamage), DAMAGEBITS_DEFLECTED_ROCKET,-1);
+	}
 }
+
 /* PlayParticle()
 **
 ** Plays a particle system at the given location & angles.
