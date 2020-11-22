@@ -92,6 +92,7 @@ float g_player_speed;
 bool g_pyro_only;
 bool g_annotation_show;
 float g_annotation_distance;
+float g_annotation_time;
 bool g_hud_show;
 float g_hud_x;
 float g_hud_y;
@@ -560,6 +561,7 @@ void LoadConfigs()
 	g_pyro_only = !!kv.GetNum("OnlyPyro",0);
 	g_annotation_show = !!kv.GetNum("ShowAnnotation",1);
 	g_annotation_distance = kv.GetFloat("HideAnnotationDistance", 1000.0);
+	g_annotation_time = kv.GetFloat("HideAnnotationTime", 1.5);
 	g_hud_show = !!kv.GetNum("ShowHud",1);
 	g_hud_x = kv.GetFloat("Xpos", 0.03);
 	g_hud_y = kv.GetFloat("Ypos", 0.21);
@@ -1911,6 +1913,7 @@ public Action Timer_MoveRocketSlot(Handle timer, int oldSlot)
 		g_RocketEnt[oldSlot].speed = 0.0;
 		g_RocketEnt[oldSlot].homing = true;
 		g_RocketEnt[oldSlot].keepdir = false;
+		HideAnnotation(oldSlot);
 		g_RocketEnt[oldSlot].annotation = false;
 		if(g_RocketEnt[oldSlot].beeptimer != null)
 		{
@@ -2720,6 +2723,7 @@ public OnEntityDestroyed(entity)
 	g_RocketEnt[rIndex].speed = -1.0;
 	g_RocketEnt[rIndex].aimed = false;
 	g_RocketEnt[rIndex].homing = true;
+	HideAnnotation(rIndex);
 	g_RocketEnt[rIndex].annotation = false;
 	if(g_RocketEnt[rIndex].beeptimer != null)
 	{
@@ -2947,7 +2951,7 @@ public Action Timer_ShowAnnotation(Handle timer, int rIndex)
 		return;
 	}
 	SetEventInt(event, "follow_entindex", index);		
-	SetEventFloat(event, "lifetime", 9999.0);
+	SetEventFloat(event, "lifetime", g_annotation_time);
 	SetEventInt(event, "id", rIndex);
 	char rocketName[MAX_NAME_LENGTH], auxString[MAX_NAME_LENGTH];
 	int class = g_RocketEnt[rIndex].class;
@@ -2970,7 +2974,7 @@ public Action Timer_ShowAnnotation(Handle timer, int rIndex)
 
 /* HideAnnotation()
 **
-** Hides teh rocket's annotation
+** Hides the rocket's annotation
 ** -------------------------------------------------------------------------- */
 public void HideAnnotation(int rIndex)
 {
