@@ -264,13 +264,6 @@ public void OnMapEnd()
 {
 	g_roundActive = false;
 	g_isDBmap = false;
-	UnhookEvent("teamplay_round_start", OnPrepartionStart);
-	UnhookEvent("arena_round_start", OnRoundStart); 
-	UnhookEvent("post_inventory_application", OnPlayerInventory);
-	UnhookEvent("player_spawn", OnPlayerSpawn);
-	UnhookEvent("player_death", OnPlayerDeath, EventHookMode_Post);
-	UnhookEvent("teamplay_round_win", OnRoundEnd);
-	UnhookEvent("teamplay_round_stalemate", OnRoundEnd);
 	for(int i = 0; i < MAXROCKETS; i++)
 	{
 		g_RocketEnt[i].entity = INVALID_ENT_REFERENCE;
@@ -1357,6 +1350,10 @@ public Action:OnPlayerDeath(Handle:event, const String:name[], bool:dontBroadcas
 	
 	//Killer
 	int killer = GetClientOfUserId(GetEventInt(event, "attacker"));
+	if(IsValidAliveClient(killer)){
+		int oldamount = GetEntProp(killer, Prop_Send, "m_nStreaks", _, 0);
+		SetEntProp(killer, Prop_Send, "m_nStreaks", oldamount+1, _, 0);
+	}
 	if(g_canEmitKillSound && client != killer && killer > 0)
 	{
 		EmitRandomSound(g_SndOnKill,killer);
@@ -2348,26 +2345,26 @@ public Action OnStartTouch(int entity, int other)
 		return Plugin_Continue;
 	
 	int class = g_RocketEnt[rIndex].class;	
-	if(g_RocketClass[class].exp_use)
-	{
-		//Check if it's a player
-		if (other > 0 && other <= MaxClients)
-		{	
-			if(GetClientTeam(g_RocketEnt[rIndex].target) == GetClientTeam(other)){
+	
+	//Check if it's a player
+	if (other > 0 && other <= MaxClients)
+	{	
+		if(GetClientTeam(g_RocketEnt[rIndex].target) == GetClientTeam(other)){
+			if(g_RocketClass[class].exp_use){
 				CreateExplosion(rIndex, entity);
-				return Plugin_Continue;
 			}
-			
-		}
-		//We check the bounce counter
-		if (g_RocketEnt[rIndex].bounces >= g_RocketClass[class].maxbounce)
-		{
-			CreateExplosion(rIndex, entity);
 			return Plugin_Continue;
 		}
-	}
-	
-	
+		
+	}	
+	//We check the bounce counter
+	if (g_RocketEnt[rIndex].bounces >= g_RocketClass[class].maxbounce)
+	{
+		if(g_RocketClass[class].exp_use){
+			CreateExplosion(rIndex, entity);
+		}
+		return Plugin_Continue;
+	}	
 	
 	SDKHook(entity, SDKHook_Touch, OnTouch);
 	return Plugin_Handled;
