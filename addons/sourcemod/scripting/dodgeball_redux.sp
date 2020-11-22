@@ -101,6 +101,7 @@ char g_hud_aimed_text[PLATFORM_MAX_PATH];
 char g_hud_aimed_color[32];
 bool g_print_kills;
 bool g_prefer_hint;
+char g_server_name[PLATFORM_MAX_PATH];
 
 //Multi rocket color
 bool g_allow_multirocketcolor;
@@ -570,6 +571,7 @@ void LoadConfigs()
 	kv.GetString("supershotcolor",g_hud_aimed_color,32,"63 255 127");
 	g_print_kills = !!kv.GetNum("printkills",1);
 	g_prefer_hint = !!kv.GetNum("preferhint",1);
+	kv.GetString("servername",g_server_name,PLATFORM_MAX_PATH,"The Server");
 	//Spawner limits and chances
 	if(kv.JumpToKey("spawner"))
 	{
@@ -1347,8 +1349,8 @@ public Action:OnPlayerDeath(Handle:event, const String:name[], bool:dontBroadcas
 	}
 	
 	//Victim
-	int client = GetClientOfUserId(GetEventInt(event, "userid"));
-	EmitRandomSound(g_SndOnDeath,client);
+	int victim = GetClientOfUserId(GetEventInt(event, "userid"));
+	EmitRandomSound(g_SndOnDeath,victim);
 	
 	//Killer
 	int killer = GetClientOfUserId(GetEventInt(event, "attacker"));
@@ -1356,35 +1358,30 @@ public Action:OnPlayerDeath(Handle:event, const String:name[], bool:dontBroadcas
 		int oldamount = GetEntProp(killer, Prop_Send, "m_nStreaks", _, 0);
 		SetEntProp(killer, Prop_Send, "m_nStreaks", oldamount+1, _, 0);
 	}
-	if(g_canEmitKillSound && client != killer && killer > 0)
+	if(g_canEmitKillSound && victim != killer && killer > 0)
 	{
 		EmitRandomSound(g_SndOnKill,killer);
 		g_canEmitKillSound = false;
 		CreateTimer(g_OnKillDelay, ReenableKillSound);
 	}
-	if (g_print_kills && IsValidClient(client))
+	if (g_print_kills && IsValidClient(victim))
 	{
 		int iInflictor = GetEventInt(event, "inflictor_entindex");
 		int rIndex = GetRocketIndex(EntIndexToEntRef(iInflictor));
 		if (rIndex >= 0)
 		{
 			int reflects = g_RocketEnt[rIndex].deflects;
-			char rocketName[MAX_NAME_LENGTH],speed[MAX_NAME_LENGTH] = "-";
+			char rocketName[MAX_NAME_LENGTH], speed[MAX_NAME_LENGTH] = "-", killerName[MAX_NAME_LENGTH] = "-", victimName[MAX_NAME_LENGTH] = "-";
 			int class = g_RocketEnt[rIndex].class;
 			g_RocketClass[class].GetName(rocketName,sizeof(rocketName));
 			Format(speed,MAX_NAME_LENGTH,"%.0f",g_RocketEnt[rIndex].speed);
-			if(GetClientTeam(client) == TEAM_RED)
-			{
-				CPrintToChatAll("{skyblue}%N {DEFAULT}killed {red}%.20N {DEFAULT}with a {green}%s{DEFAULT} ({gold}%s{DEFAULT} HM/s, {gold}%.i{DEFAULT} Def{DEFAULT}).", killer, client, rocketName, speed, reflects);
-			}
-			else
-			{
-				CPrintToChatAll("{red}%N {DEFAULT}killed {skyblue}%.20N {DEFAULT}with a {green}%s{DEFAULT} ({gold}%s{DEFAULT} HM/s, {gold}%.i{DEFAULT} Def{DEFAULT}).", killer, client, rocketName, speed, reflects);
-			}
+			GetPlayerString(killerName, killer, true);
+			GetPlayerString(victimName, victim, true);
+			CPrintToChatAll("%s killed %s with a {green}%s{DEFAULT} ({gold}%s{DEFAULT} HM/s, {gold}%.i{DEFAULT} Def{DEFAULT}).", killerName, victimName, rocketName, speed, reflects);
 		}
 	}
 	//Check for last one alive
-	int victimTeam = GetClientTeam(client);
+	int victimTeam = GetClientTeam(victim);
 	int enemyteam;
 	if(victimTeam == TEAM_RED)
 	{
@@ -1394,16 +1391,16 @@ public Action:OnPlayerDeath(Handle:event, const String:name[], bool:dontBroadcas
 	{
 		enemyteam = TEAM_RED;	
 	}
-	int aliveTeammates = GetAlivePlayersCount(victimTeam,client);
+	int aliveTeammates = GetAlivePlayersCount(victimTeam,victim);
 	
 	if(aliveTeammates == 0 && g_1v1_started)
 	{
-		LivesAnnotation(client, 0);
+		LivesAnnotation(victim, 0);
 		LivesAnnotation(GetLastPlayer(enemyteam,-1), 0);
 	}
 	if(aliveTeammates == 1)
 	{
-		EmitRandomSound(g_SndLastAlive,GetLastPlayer(victimTeam,client));
+		EmitRandomSound(g_SndLastAlive,GetLastPlayer(victimTeam,victim));
 		if(g_1v1_allow)
 		{
 			int aliveEnemies;
@@ -3095,17 +3092,7 @@ void GetHudString(char[] strHud, int length, int rIndex, bool twoLines)
 	{
 		if( g_RocketEnt[rIndex].owner >= 0 && g_RocketEnt[rIndex].owner <= MaxClients )
 		{
-			if( g_RocketEnt[rIndex].owner == 0)
-			{
-				Format(owner,MAX_NAME_LENGTH,"The server");
-			}
-			else
-			{
-				if(IsValidClient(g_RocketEnt[rIndex].owner))
-				{
-					Format(owner,MAX_NAME_LENGTH,"%N",g_RocketEnt[rIndex].owner);
-				}
-			}
+			GetPlayerString(owner, g_RocketEnt[rIndex].owner, false);
 		}
 		if(IsValidClient(g_RocketEnt[rIndex].target))
 		{
@@ -3128,6 +3115,32 @@ void GetHudString(char[] strHud, int length, int rIndex, bool twoLines)
 	else
 	{
 		Format(strHud, length, " Owner: %s \n Target: %s \n Deflects: %s \n Speed: %s",owner,target,deflects,speed);
+	}
+}
+
+void GetPlayerString(char[] playerName, int clientId, bool useColor){
+	if( clientId == 0)
+	{
+		if(useColor){
+			Format(playerName,MAX_NAME_LENGTH,"{darkgray}%s{DEFAULT}",g_server_name);
+		} else {
+			Format(playerName,MAX_NAME_LENGTH, g_server_name);
+		}
+	}
+	else
+	{
+		if(IsValidClient(clientId))
+		{
+			if(useColor){
+				if(GetClientTeam(clientId) == TEAM_RED){
+					Format(playerName,MAX_NAME_LENGTH,"{red}%.20N{DEFAULT}",clientId);
+				} else {
+					Format(playerName,MAX_NAME_LENGTH,"{skyblue}%.20N{DEFAULT}",clientId);
+				}
+			} else {
+				Format(playerName,MAX_NAME_LENGTH,"%N",clientId);
+			}
+		}
 	}
 }
 
