@@ -1088,8 +1088,7 @@ public Action OnRoundStart(Handle event, const char[] name, bool dontBroadcast)
 	{
 		if( GetAlivePlayersCount(TEAM_BLUE,-1) == 1 && GetAlivePlayersCount(TEAM_RED,-1) == 1)
 		{
-			
-				Start1V1Mode();
+			Start1V1Mode();
 		}
 	}
 	
@@ -1453,7 +1452,7 @@ public void Start1V1Mode()
 	{
 		return;
 	}
-	if(g_onPreparation)
+	if(g_onPreparation || !g_roundActive)
 	{
 		return;
 	}
