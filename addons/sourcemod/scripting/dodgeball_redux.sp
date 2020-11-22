@@ -27,6 +27,7 @@
 #define CLASS_PYRO 7
 #define CLASS_SPY 8
 #define DAMAGEBITS_DEFLECTED_ROCKET 3407936
+#define AIRBLAST_PUSH_ATTRIBUTE 823
 
 #define SOUND_ALERT_VOL	0.8
 #define HUD_LINE_SEPARATION 0.04
@@ -1264,7 +1265,7 @@ public Action OnPlayerInventory(Handle event, const char[] name, bool dontBroadc
 				}
 				if(!replace_primary)
 				{
-					TF2Attrib_SetByDefIndex(wep_ent, 823, 1.0);
+					TF2Attrib_SetByDefIndex(wep_ent, AIRBLAST_PUSH_ATTRIBUTE, 1.0);
 				}
 			}
 			else
@@ -1281,7 +1282,7 @@ public Action OnPlayerInventory(Handle event, const char[] name, bool dontBroadc
 		TF2Items_SetItemIndex(hItem, 21);
 		TF2Items_SetLevel(hItem, 69);
 		TF2Items_SetQuality(hItem, 6);
-		TF2Items_SetAttribute(hItem, 0, 823, 1.0); //Can't push other players
+		TF2Items_SetAttribute(hItem, 0, AIRBLAST_PUSH_ATTRIBUTE, 1.0); //Can't push other players
 		TF2Items_SetNumAttributes(hItem, 1);
 		int iWeapon = TF2Items_GiveNamedItem(client, hItem);
 		CloseHandle(hItem);
@@ -3196,7 +3197,11 @@ public Action OnPlayerRunCmd(iClient, &iButtons, &iImpulse, Float:fVelocity[3], 
 	{
 		return Plugin_Continue;
 	}
-	iButtons &= ~IN_ATTACK;
+	if (iButtons & IN_ATTACK)
+    {
+        iButtons &= ~IN_ATTACK;
+        iButtons |= IN_ATTACK2; 
+    }
 	return Plugin_Continue;
 }
 
