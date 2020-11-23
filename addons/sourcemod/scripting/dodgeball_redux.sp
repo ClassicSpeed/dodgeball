@@ -1919,6 +1919,8 @@ public Action Timer_MoveRocketSlot(Handle timer, int oldSlot)
 		g_RocketEnt[oldSlot].beeptimer = null;
 	
 	}
+	ClearHud();
+	RenderHud();
 	
 }
 
@@ -2267,7 +2269,6 @@ public void AttachTrail(int rIndex)
 
 	
 	DispatchKeyValue(trail, "rendermode", "3");
-	DispatchSpawn(trail);
 
 	float vec[3];
 	GetEntPropVector(index, Prop_Data, "m_vecOrigin", vec);
@@ -2277,6 +2278,7 @@ public void AttachTrail(int rIndex)
 	SetVariantString(strTargetName);
 	AcceptEntityInput(trail, "SetParent"); 
 	SetEntPropFloat(trail, Prop_Send, "m_flTextureRes", 0.05);
+	DispatchSpawn(trail);
 	return;
 }
 
