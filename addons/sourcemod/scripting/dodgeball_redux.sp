@@ -1287,7 +1287,6 @@ public Action OnPlayerInventory(Handle event, const char[] name, bool dontBroadc
 		TF2Items_SetLevel(hItem, 69);
 		TF2Items_SetQuality(hItem, 6);
 		TF2Items_SetAttribute(hItem, 0, AIRBLAST_PUSH_ATTRIBUTE, 1.0); //Can't push other players
-		TF2Items_SetAttribute(hItem, 0, 2025, 1.0); //Adds a killstreak to the flamethrower
 		TF2Items_SetNumAttributes(hItem, 1);
 		int iWeapon = TF2Items_GiveNamedItem(client, hItem);
 		CloseHandle(hItem);
